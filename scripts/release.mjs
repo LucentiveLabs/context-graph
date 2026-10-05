@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from "nod
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { parseNpmPackResult } from "./npm-pack-result.mjs";
 
 const repository = "LucentiveLabs/context-graph";
 const registry = "https://registry.npmjs.org/";
@@ -53,7 +54,7 @@ async function prepare() {
     // npm's directory publisher supplies gitHead. Include the same exact
     // metadata in the prebuilt tarball so the privileged job never repacks.
     writeFileSync("package.json", JSON.stringify({ ...pkg, gitHead: head }, null, 2) + "\n");
-    [packed] = JSON.parse(execFileSync("npm", ["pack", "--ignore-scripts", "--json", "--pack-destination", "release-artifact"], { encoding: "utf8" }));
+    packed = parseNpmPackResult(execFileSync("npm", ["pack", "--ignore-scripts", "--json", "--pack-destination", "release-artifact"], { encoding: "utf8" }), pkg);
   } finally { writeFileSync("package.json", original); }
   const bytes = readFileSync(join("release-artifact", packed.filename));
   const receipt = { schema: "context-graph-release.v1", name: pkg.name, version: pkg.version, head, file: packed.filename, sha256: digest(bytes), integrity: `sha512-${digest(bytes, "sha512", "base64")}`, checkedAt: new Date().toISOString() };

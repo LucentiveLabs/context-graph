@@ -6,10 +6,18 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assertVersionAvailable, assertPublished, readReleaseArtifact } from "../scripts/release.mjs";
+import { parseNpmPackResult } from "../scripts/npm-pack-result.mjs";
+test("pack metadata supports legacy arrays and npm 12 maps and refuses ambiguous output", () => {
+  const expected = { name: "@example/package", version: "0.1.0" };
+  const pack = { ...expected, filename: "example-package-0.1.0.tgz", integrity: "sha512-example", files: [] };
+  for (const output of [[pack], { [pack.name]: pack }]) assert.deepEqual(parseNpmPackResult(JSON.stringify(output), expected), pack);
+  for (const output of [null, {}, [], [pack, pack], { a: pack, b: pack }]) assert.throws(() => parseNpmPackResult(JSON.stringify(output), expected), /exactly one/);
+  for (const change of [{ name: "other" }, { version: "0.2.0" }, { files: null }, { filename: null }, { integrity: null }]) assert.throws(() => parseNpmPackResult(JSON.stringify([{ ...pack, ...change }]), expected), /metadata differs/);
+});
 test("publisher accepts npm's actual packed filename and refuses escaped or changed artifacts", (t) => {
   const directory = mkdtempSync(join(tmpdir(), "context-graph-pack-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  const [packed] = JSON.parse(execFileSync("npm", ["pack", "--ignore-scripts", "--json", "--pack-destination", directory], { encoding: "utf8" }));
+  const packed = parseNpmPackResult(execFileSync("npm", ["pack", "--ignore-scripts", "--json", "--pack-destination", directory], { encoding: "utf8" }), JSON.parse(readFileSync("package.json", "utf8")));
   const bytes = readFileSync(join(directory, packed.filename));
   const receipt = { file: packed.filename, sha256: createHash("sha256").update(bytes).digest("hex"), integrity: packed.integrity };
   assert.equal(readReleaseArtifact(receipt, directory), join(directory, packed.filename));

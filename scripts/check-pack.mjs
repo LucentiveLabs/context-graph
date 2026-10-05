@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-const [pack] = JSON.parse(execFileSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { encoding: "utf8" }));
+import { parseNpmPackResult } from "./npm-pack-result.mjs";
+const pack = parseNpmPackResult(execFileSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { encoding: "utf8" }), JSON.parse(readFileSync("package.json", "utf8")));
 const forbidden = /(?:\/Users\/|\/home\/)[A-Za-z0-9_.-]+\/|SRC-20\d\d-\d\d-\d\d|(?:api[_-]?key|access[_-]?token)\s*[:=]\s*["'][A-Za-z0-9_-]{20}/i;
 for (const { path } of pack.files) {
   if (!/^(?:src\/|bin\/|schemas\/|skills\/context-graph\/|examples\/minimal\/|README\.md$|LICENSE$|package\.json$)/.test(path)) throw new Error(`Unexpected release file: ${path}`);

@@ -30,6 +30,12 @@ export function assertPublished(receipt, published) {
   if (published.dist?.integrity !== receipt.integrity) throw new Error("Registry tarball differs from the gated artifact");
   if (!published.dist?.attestations?.url) throw new Error("Registry provenance is missing");
 }
+export function readReleaseArtifact(receipt, directory = "release-artifact") {
+  if (typeof receipt.file !== "string" || !/^[a-z0-9][a-z0-9.-]*\.tgz$/.test(receipt.file)) throw new Error("Invalid artifact name");
+  const file = join(directory, receipt.file); const bytes = readFileSync(file);
+  if (digest(bytes) !== receipt.sha256 || `sha512-${digest(bytes, "sha512", "base64")}` !== receipt.integrity) throw new Error("Artifact digest differs");
+  return file;
+}
 async function prepare() {
   const env = process.env;
   if (env.GITHUB_REPOSITORY !== repository || env.GITHUB_REF !== "refs/heads/main") throw new Error("Release requires the canonical main branch");
@@ -60,9 +66,7 @@ async function publish() {
   if (!process.env.ACTIONS_ID_TOKEN_REQUEST_URL || !process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN) throw new Error("Trusted publisher identity is unavailable");
   const receipt = json("release-artifact/receipt.json");
   if (receipt.head !== process.env.GITHUB_SHA || process.env.GITHUB_REPOSITORY !== repository || process.env.GITHUB_REF !== "refs/heads/main") throw new Error("Artifact revision differs from publisher");
-  if (!/^[a-z0-9-]+\.tgz$/.test(receipt.file)) throw new Error("Invalid artifact name");
-  const file = join("release-artifact", receipt.file); const bytes = readFileSync(file);
-  if (digest(bytes) !== receipt.sha256 || `sha512-${digest(bytes, "sha512", "base64")}` !== receipt.integrity) throw new Error("Artifact digest differs");
+  const file = readReleaseArtifact(receipt);
   const existing = await get(registry + encodeURIComponent(receipt.name) + "/" + receipt.version, true);
   if (existing) { assertPublished(receipt, existing); console.log("Existing exact release will be reverified"); return; }
   execFileSync("npm", ["publish", file, "--ignore-scripts", "--access", "public", "--provenance", "--registry", registry], { stdio: "inherit" });

@@ -28,10 +28,12 @@
 set -uo pipefail
 
 MODE="full"
+UNTRUSTED=0
 REPO="$(pwd)"
 FAIL_ON="high"   # secrets = block only on leaked secrets; high = also block on HIGH/CRITICAL deps vulns + CRITICAL/HIGH/ERROR-severity SAST findings (lower severities report-only); off = report only
 while [ $# -gt 0 ]; do
   case "$1" in
+    --untrusted) UNTRUSTED=1; shift ;;
     --mode) MODE="$2"; shift 2 ;;
     --repo) REPO="$2"; shift 2 ;;
     --fail-on) FAIL_ON="$2"; shift 2 ;;
@@ -48,7 +50,17 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 # Resolve a gitleaks config as an ARRAY (no word-splitting / option-injection via
 # a path with spaces): the repo's own .gitleaks.toml, else the kit baseline.
 GL_CONFIG=()
-if [ -f "$REPO/.gitleaks.toml" ]; then GL_CONFIG=(--config "$REPO/.gitleaks.toml")
+OSV_POLICY=()
+SG_POLICY=()
+if [ "$UNTRUSTED" = 1 ]; then
+  POLICY_TMP="$(mktemp -d "${TMPDIR:-/tmp}/context-graph-policy.XXXXXX")" || exit 2
+  trap 'rm -rf "$POLICY_TMP"' EXIT
+  printf '[extend]\nuseDefault = true\n' > "$POLICY_TMP/gitleaks.toml"
+  : > "$POLICY_TMP/osv-scanner.toml"
+  GL_CONFIG=(--config "$POLICY_TMP/gitleaks.toml" --gitleaks-ignore-path /dev/null --ignore-gitleaks-allow)
+  OSV_POLICY=(--config "$POLICY_TMP/osv-scanner.toml" --no-ignore)
+  SG_POLICY=(--no-git-ignore --x-ignore-semgrepignore-files --disable-nosem)
+elif [ -f "$REPO/.gitleaks.toml" ]; then GL_CONFIG=(--config "$REPO/.gitleaks.toml")
 elif [ -f "$SELF_DIR/gitleaks-baseline.toml" ]; then GL_CONFIG=(--config "$SELF_DIR/gitleaks-baseline.toml"); fi
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -92,7 +104,7 @@ if have osv-scanner; then
   # embedded python3 parser classifies each vuln HIGH/CRITICAL vs lower.
   # Per-run temp files (harness rule: never fixed shared /tmp paths).
   if OSV_OUT="$(mktemp "${TMPDIR:-/tmp}/osv-out.XXXXXX")" && OSV_ERR="$(mktemp "${TMPDIR:-/tmp}/osv-err.XXXXXX")"; then
-    osv-scanner scan source --format json -r . >"$OSV_OUT" 2>"$OSV_ERR"
+    osv-scanner scan source ${OSV_POLICY[@]+"${OSV_POLICY[@]}"} --format json -r . >"$OSV_OUT" 2>"$OSV_ERR"
     OSV_RC=$?
     case "$OSV_RC" in
       0)   echo "✅ osv-scanner: clean" ;;
@@ -106,7 +118,7 @@ if have osv-scanner; then
           # STRING, not a number — deliberately not parsed; such vulns fail
           # closed as unknown.) This parser only runs when osv-scanner exited 1
           # (findings exist), so zero parsed findings = schema drift -> exit 3.
-          python3 - "$OSV_OUT" <<'PY_OSV'
+          python3 -I - "$OSV_OUT" <<'PY_OSV'
 import json, sys
 
 def as_float(x):
@@ -198,7 +210,7 @@ if have semgrep; then
   # semgrep exit codes with --error: 0 = clean, 1 = findings (any severity),
   # >1 = scanner error.
   if SG_OUT="$(mktemp "${TMPDIR:-/tmp}/semgrep-out.XXXXXX")"; then
-    semgrep scan \
+    semgrep scan ${SG_POLICY[@]+"${SG_POLICY[@]}"} \
       --config p/owasp-top-ten --config p/secrets --config p/javascript \
       --config p/typescript --config p/react --config p/nextjs \
       --error --quiet --metrics off --timeout 120 \
@@ -212,7 +224,7 @@ if have semgrep; then
         if have python3; then
           # This parser only runs when semgrep (with --error) exited 1, i.e.
           # findings exist — so zero parsed findings = schema drift -> exit 3.
-          python3 - "$SG_OUT" <<'PY_SG'
+          python3 -I - "$SG_OUT" <<'PY_SG'
 import json, sys
 
 try:

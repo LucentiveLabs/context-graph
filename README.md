@@ -38,6 +38,12 @@ npm test
 npm run check:pack
 ```
 
+The PR security workflow runs the base revision's scanner against a separate
+checkout of the exact candidate SHA. Candidate scripts, install hooks and
+suppression files cannot replace that scanner. Its first installation requires
+the reviewed local full scan; after merging, dispatch the main-branch workflow
+and verify a real PR-target run before claiming hosted enforcement.
+
 The release comes from this canonical repository. The release workflow gates a tarball without publication credentials, publishes those exact bytes through npm trusted publishing, then verifies the registry revision, tarball integrity, install/import behavior, and cryptographic signatures in a separate job. Configure the package trusted publisher for `LucentiveLabs/context-graph` and `release.yml` with direct publication enabled before the first release. No local npm token is part of this lane. A failed run can be retried through workflow dispatch with `confirm: recover`; an existing version is accepted only when its revision and bytes match. A public source release and a successful npm release are separate states.
 
 MIT licensed.

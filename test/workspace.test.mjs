@@ -30,6 +30,12 @@ test("changed text is checked against shared projection rules", (t) => {
   assert.equal(result.findings.length, 1); assert.equal(result.findings[0].kind, "term-drift"); assert.equal(result.findings[0].line, 5);
 });
 
+test("a projection cannot silently downgrade a binding section", (t) => {
+  const payload = projection();
+  payload.items.find((item) => item.section === "terms").binding = false;
+  assert.throws(() => loadWorkspace(fixture(t, payload)), { code: "PROJECTION_INVALID" });
+});
+
 test("unresolved, expired, mismatched and escaped projections refuse context", (t) => {
   const payload = projection(); const root = fixture(t, payload);
   assert.throws(() => loadWorkspace(root, { today: "2100-01-01" }), { code: "PROJECTION_STALE" });

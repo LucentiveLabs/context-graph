@@ -1,0 +1,30 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+
+test("trusted scanning treats candidate scripts and suppression files as data", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "context-graph-security-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const candidate = join(root, "candidate"); const bin = join(root, "bin");
+  mkdirSync(join(candidate, "scripts"), { recursive: true }); mkdirSync(bin);
+  writeFileSync(join(candidate, "scripts", "security-scan.sh"), "#!/bin/sh\ntouch executed\nexit 0\n");
+  for (const name of [".gitleaks.toml", ".gitleaksignore", "osv-scanner.toml", ".semgrepignore"]) writeFileSync(join(candidate, name), "malicious suppression\n");
+  for (const name of ["gitleaks", "osv-scanner", "semgrep"]) writeFileSync(join(bin, name), `#!/bin/sh\nprintf '%s\\n' "$@" > "$SCAN_LOG/${name}.args"\nexit ${name === "gitleaks" ? '"${LEAK_EXIT:-0}"' : "0"}\n`, { mode: 0o755 });
+  const args = [resolve("scripts/security-scan.sh"), "--repo", candidate, "--untrusted", "--mode", "full", "--fail-on", "high"];
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, SCAN_LOG: root };
+  const result = spawnSync("bash", args, { env, encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(existsSync(join(candidate, "executed")), false);
+  const gl = readFileSync(join(root, "gitleaks.args"), "utf8");
+  assert.match(gl, /--config\n[^\n]+context-graph-policy[^\n]+\/gitleaks.toml/);
+  assert.match(gl, /--gitleaks-ignore-path\n\/dev\/null/); assert.match(gl, /--ignore-gitleaks-allow/);
+  const osv = readFileSync(join(root, "osv-scanner.args"), "utf8");
+  assert.match(osv, /--config\n[^\n]+context-graph-policy[^\n]+\/osv-scanner.toml/); assert.match(osv, /--no-ignore/);
+  const sg = readFileSync(join(root, "semgrep.args"), "utf8");
+  for (const flag of ["--no-git-ignore", "--x-ignore-semgrepignore-files", "--disable-nosem"]) assert.ok(sg.includes(flag));
+  const refused = spawnSync("bash", args, { env: { ...env, LEAK_EXIT: "1" }, encoding: "utf8" });
+  assert.equal(refused.status, 1, refused.stdout);
+});

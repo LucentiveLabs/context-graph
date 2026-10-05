@@ -64,6 +64,7 @@ export function payloadProblems(p) {
   if (!Array.isArray(p.items) || !p.items.every((it) => HANDLE.test(String(it?.handle)) && SECTIONS.has(it?.section) && typeof it?.text === "string" && it.text)) P.push("items must each carry a ctx handle, a known section and text");
   if (!Array.isArray(p.inaccessible)) P.push("inaccessible must be a list");
   for (const it of Array.isArray(p.items) ? p.items : []) {
+    if (it.binding !== BINDING_SECTIONS.includes(it.section)) P.push(`item ${it.handle} binding must match its section`);
     if (it.section === "terms" && !(Array.isArray(it.deprecated) && it.deprecated.every((d) => typeof d?.text === "string" && typeof d?.re === "string"))) P.push(`term ${it.handle} needs deprecated [{ text, re }]`);
     if (it.section === "checks" && !(Array.isArray(it.patterns) && it.patterns.every((x) => typeof x?.re === "string"))) P.push(`check ${it.handle} needs patterns`);
     if (it.section === "acceptance") {

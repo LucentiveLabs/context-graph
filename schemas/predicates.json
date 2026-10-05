@@ -1,0 +1,185 @@
+{
+  "schema": "origin-graph-predicates/v1",
+  "rule": "Ontology v1 of the context-graph design record, plus the discovery-only predicates links_to_anchor and would_supersede (P2) and the product relations powers, belongs_to, productizes and independent_of (P3). pairs list the node kinds a predicate may join; compose lists the two-hop chains that imply a relation (first predicate, then the key, implies the value). Every other chain, and every chain through a never_compose predicate, is a discovery hint that implies nothing. Trust never grows by traversal: the implied relation takes the lower confidence, the weaker state and the intersection of both edges' policies.",
+  "query_allowlist": ["derived_from", "supersedes", "defines", "uses_term", "deprecates", "depends_on", "contains_claim", "aligns_with", "documented_influence", "candidate_application", "powers", "belongs_to", "productizes", "independent_of"],
+  "max_hops": 2,
+  "never_compose": ["aligns_with", "documented_influence", "candidate_application", "links_to_anchor", "would_supersede"],
+  "order": {
+    "state": ["retired", "contested", "proposed", "accepted"],
+    "visibility": ["founder-private", "private", "team", "public"],
+    "publication": ["do-not-publish", "not-authorized", "team-continuity-exists", "authorized"],
+    "profile": ["private", "team"]
+  },
+  "predicates": {
+    "captured_from": {
+      "meaning": "the node was captured from or extracted out of this registered source",
+      "pairs": [{ "from": ["FounderAnchor", "KernelNode", "Item", "Excerpt"], "to": ["Source"] }],
+      "compose": {}
+    },
+    "expresses": {
+      "meaning": "the node expresses this bounded concept",
+      "pairs": [{ "from": ["Item", "Excerpt", "KernelNode", "FounderAnchor", "CandidateStatement", "Inference", "Artifact", "Claim"], "to": ["Concept"] }],
+      "compose": {}
+    },
+    "broader_than": {
+      "meaning": "the concept is broader than the narrower concept",
+      "pairs": [{ "from": ["Concept"], "to": ["Concept"] }],
+      "same_kind": true,
+      "acyclic": true,
+      "compose": {}
+    },
+    "distinct_from": {
+      "meaning": "the two concepts must stay distinct, however similar they read",
+      "pairs": [{ "from": ["Concept"], "to": ["Concept"] }],
+      "same_kind": true,
+      "symmetric": true,
+      "compose": {}
+    },
+    "aligns_with": {
+      "meaning": "the node supports, illustrates or extends a founder anchor, kernel node or candidate statement",
+      "pairs": [{ "from": ["Item", "Excerpt", "Concept", "KernelNode", "Inference", "Claim", "Artifact", "Source"], "to": ["FounderAnchor", "KernelNode", "CandidateStatement"] }],
+      "qualifier": ["supports", "illustrates", "extends"],
+      "label": "alignment (never proof of a product claim)",
+      "compose": {}
+    },
+    "in_tension_with": {
+      "meaning": "the node stands in tension with the target",
+      "pairs": [{ "from": ["Item", "Excerpt", "Concept", "KernelNode", "Inference", "Claim", "Artifact", "CandidateStatement", "Source"], "to": ["FounderAnchor", "KernelNode", "CandidateStatement", "Concept", "Decision", "Claim", "Inference"] }],
+      "compose": {}
+    },
+    "documented_influence": {
+      "meaning": "a brief, decision or receipt documents that the node shaped the product, artifact or claim",
+      "pairs": [{ "from": ["Source", "Item", "Excerpt", "Concept", "FounderAnchor", "KernelNode"], "to": ["Product", "Artifact", "Claim"] }],
+      "evidence_kinds": ["Artifact", "Decision", "Intent", "FounderAnchor"],
+      "evidence_anchor_kinds": ["decision"],
+      "evidence_artifact_kinds": ["brief"],
+      "label": "documented influence",
+      "compose": {}
+    },
+    "candidate_application": {
+      "meaning": "the node may apply to the product, artifact or claim; semantic resemblance only, never history",
+      "pairs": [{ "from": ["Source", "Item", "Excerpt", "Concept", "FounderAnchor", "KernelNode"], "to": ["Product", "Artifact", "Claim"] }],
+      "label": "candidate application (semantic resemblance only)",
+      "compose": {}
+    },
+    "defines": {
+      "meaning": "a founder definition or term anchor, or a product document, defines the product or concept; founder definitions win over docs",
+      "pairs": [
+        { "from": ["FounderAnchor"], "from_anchor_kinds": ["definition", "term"], "to": ["Product", "Concept"] },
+        { "from": ["Artifact"], "to": ["Product", "Concept"] }
+      ],
+      "compose": {}
+    },
+    "uses_term": {
+      "meaning": "the node uses the term",
+      "pairs": [
+        { "from": ["Artifact", "Claim", "Product", "Concept"], "to": ["FounderAnchor"], "to_anchor_kinds": ["term"] },
+        { "from": ["Artifact", "Claim", "Product", "Concept"], "to": ["Concept"] }
+      ],
+      "compose": {}
+    },
+    "deprecates": {
+      "meaning": "a founder term or decision anchor deprecates an older term or concept",
+      "pairs": [
+        { "from": ["FounderAnchor"], "from_anchor_kinds": ["term", "decision"], "to": ["FounderAnchor"], "to_anchor_kinds": ["term"] },
+        { "from": ["FounderAnchor"], "from_anchor_kinds": ["term", "decision"], "to": ["Concept"] }
+      ],
+      "protects_anchors": true,
+      "compose": {}
+    },
+    "contains_claim": {
+      "meaning": "the artifact states the claim",
+      "pairs": [{ "from": ["Artifact"], "to": ["Claim"] }],
+      "compose": { "depends_on": "depends_on", "uses_term": "uses_term" }
+    },
+    "depends_on": {
+      "meaning": "the node depends on the target; a change of the target can affect it",
+      "pairs": [{ "from": ["Artifact", "Claim", "Product", "Projection", "Intent", "Concept"], "to": ["Artifact", "Claim", "Product", "Concept", "FounderAnchor", "Decision", "Item", "Source", "Projection", "KernelNode"] }],
+      "compose": { "depends_on": "depends_on" }
+    },
+    "powers": {
+      "meaning": "the product powers the other product: the foundation the other runs on or is built with",
+      "pairs": [{ "from": ["Product"], "to": ["Product"] }],
+      "same_kind": true,
+      "acyclic": true,
+      "compose": {}
+    },
+    "belongs_to": {
+      "meaning": "the product is part of the other product: a pillar, the parent, or the project a facet presents",
+      "pairs": [{ "from": ["Product"], "to": ["Product"] }],
+      "same_kind": true,
+      "acyclic": true,
+      "compose": { "belongs_to": "belongs_to" }
+    },
+    "productizes": {
+      "meaning": "the product packages the other product's capability as an offer",
+      "pairs": [{ "from": ["Product"], "to": ["Product"] }],
+      "same_kind": true,
+      "acyclic": true,
+      "compose": {}
+    },
+    "independent_of": {
+      "meaning": "the product is recorded as independent of the other (ownership, governance or identity); it contradicts powers, belongs_to, productizes and depends_on between the two, in either direction",
+      "pairs": [{ "from": ["Product"], "to": ["Product"] }],
+      "same_kind": true,
+      "symmetric": true,
+      "compose": {}
+    },
+    "pins": {
+      "meaning": "the artifact (such as a contract test) pins the target's current wording or state",
+      "pairs": [{ "from": ["Artifact"], "to": ["FounderAnchor", "Decision", "Claim", "Concept", "Artifact"] }],
+      "compose": {}
+    },
+    "evidences": {
+      "meaning": "the node is evidence for the target",
+      "pairs": [{ "from": ["Excerpt", "Item", "Source", "Artifact"], "to": ["Item", "Claim", "Decision", "Question", "Concept"] }],
+      "compose": {}
+    },
+    "constrains": {
+      "meaning": "the anchor, decision or inference constrains the target",
+      "pairs": [{ "from": ["FounderAnchor", "Decision", "Inference"], "to": ["Product", "Artifact", "Claim", "Intent", "Concept"] }],
+      "compose": {}
+    },
+    "raises": {
+      "meaning": "the node raises the open question",
+      "pairs": [{ "from": ["Source", "Item", "Artifact", "Claim", "Concept"], "to": ["Question"] }],
+      "compose": {}
+    },
+    "resolved_by": {
+      "meaning": "the question was resolved by the decision or founder anchor",
+      "pairs": [{ "from": ["Question"], "to": ["Decision", "FounderAnchor"] }],
+      "compose": {}
+    },
+    "supersedes": {
+      "meaning": "the newer node supersedes the older node of the same kind",
+      "pairs": [{ "from": ["FounderAnchor", "Decision", "Concept", "Artifact", "Inference", "Projection", "CandidateStatement"], "to": ["FounderAnchor", "Decision", "Concept", "Artifact", "Inference", "Projection", "CandidateStatement"] }],
+      "same_kind": true,
+      "acyclic": true,
+      "protects_anchors": true,
+      "compose": { "supersedes": "supersedes" }
+    },
+    "exported_as": {
+      "meaning": "the node is exported in the approved projection",
+      "pairs": [{ "from": ["Concept", "Product", "FounderAnchor", "Decision", "Item", "Claim"], "to": ["Projection"] }],
+      "compose": {}
+    },
+    "links_to_anchor": {
+      "meaning": "the registry links the source (or a kernel node) to this baseline row, interview answer or kernel node; a discovery hint that records the link and asserts no relation",
+      "pairs": [{ "from": ["Source", "KernelNode"], "to": ["FounderAnchor", "KernelNode"] }],
+      "label": "registry link (discovery only)",
+      "compose": {}
+    },
+    "would_supersede": {
+      "meaning": "adopting the open proposal would supersede this baseline row or interview answer; a discovery hint until the founder decides",
+      "pairs": [{ "from": ["Question"], "to": ["FounderAnchor"] }],
+      "label": "would supersede if adopted (discovery only)",
+      "compose": {}
+    },
+    "derived_from": {
+      "meaning": "the node was derived from the target; an inference rests on its founder anchors",
+      "pairs": [{ "from": ["Inference", "Concept", "Claim"], "to": ["FounderAnchor", "KernelNode", "CandidateStatement", "Inference", "Item", "Excerpt", "Source"] }],
+      "acyclic": true,
+      "compose": { "derived_from": "derived_from" }
+    }
+  }
+}

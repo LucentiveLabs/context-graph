@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:origin:graph:schema:assertion",
+  "title": "Context graph assertion",
+  "description": "Every semantic edge is an assertion record. confidence is the edge's own value and is never merged with an item's evidence score, alignment or fit. An accepted assertion needs review receipts whose proposal_sha256 equals the canonical hash of the record without review_receipts and state (src/core/canonical.mjs). Stored assertions use assertion: ids; import: and field: ids are derived at build time and never stored.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "id", "from", "predicate", "to", "scope", "rationale", "evidence_refs", "proposer", "confidence", "state", "review_receipts", "policy", "binds", "valid_from", "valid_to", "profile"],
+  "properties": {
+    "kind": { "const": "Assertion" },
+    "id": { "$ref": "urn:origin:graph:schema:common#/$defs/assertionId" },
+    "from": { "$ref": "urn:origin:graph:schema:common#/$defs/nodeId" },
+    "predicate": {
+      "enum": ["captured_from", "expresses", "broader_than", "distinct_from", "aligns_with", "in_tension_with", "documented_influence", "candidate_application", "defines", "uses_term", "deprecates", "contains_claim", "depends_on", "powers", "belongs_to", "productizes", "independent_of", "pins", "evidences", "constrains", "raises", "resolved_by", "supersedes", "exported_as", "derived_from", "links_to_anchor", "would_supersede"]
+    },
+    "to": { "$ref": "urn:origin:graph:schema:common#/$defs/nodeId" },
+    "scope": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[a-z0-9][a-z0-9 :/._-]*$" },
+    "relation": { "enum": ["supports", "illustrates", "extends"], "description": "the qualifier of aligns_with; no other predicate takes one" },
+    "rationale": { "$ref": "urn:origin:graph:schema:common#/$defs/shortText" },
+    "evidence_refs": { "type": "array", "uniqueItems": true, "items": { "$ref": "urn:origin:graph:schema:common#/$defs/nodeId" } },
+    "proposer": { "$ref": "urn:origin:graph:schema:common#/$defs/proposer" },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "state": { "$ref": "urn:origin:graph:schema:common#/$defs/state" },
+    "review_receipts": { "$ref": "urn:origin:graph:schema:common#/$defs/receipts" },
+    "policy": { "$ref": "urn:origin:graph:schema:common#/$defs/policy" },
+    "binds": { "$ref": "urn:origin:graph:schema:common#/$defs/binds" },
+    "valid_from": { "$ref": "urn:origin:graph:schema:common#/$defs/date" },
+    "valid_to": { "$ref": "urn:origin:graph:schema:common#/$defs/dateOrNull" },
+    "profile": { "$ref": "urn:origin:graph:schema:common#/$defs/profile" }
+  }
+}

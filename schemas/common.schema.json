@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:origin:graph:schema:common",
+  "title": "Context graph, shared definitions",
+  "description": "Definitions every graph record shares. A node id is <prefix>:<local>, and the prefix names the kind (validators check the pairing). Labels of founder anchors are at most five words and never quote the capture; other free text is agent text and stays short.",
+  "$defs": {
+    "nodeId": { "type": "string", "pattern": "^[a-z]+:[A-Za-z0-9][A-Za-z0-9._#/-]*$", "maxLength": 200 },
+    "assertionId": { "type": "string", "pattern": "^(assertion|import|field):[^\\s]+$", "maxLength": 400 },
+    "storedAssertionId": { "type": "string", "pattern": "^assertion:[a-z0-9][a-z0-9.-]*$", "maxLength": 120 },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "gitRevision": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "label5Item": { "type": "string", "maxLength": 60, "pattern": "^\\S+( \\S+){0,4}$" },
+    "sha256OrNull": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+    "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "dateOrNull": { "anyOf": [{ "$ref": "#/$defs/date" }, { "type": "null" }] },
+    "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "relPath": { "type": "string", "minLength": 1, "maxLength": 300, "pattern": "^[^/~\\\\][^\\\\]*$" },
+    "label5": { "type": "string", "maxLength": 60, "pattern": "^\\S+( \\S+){0,4}$", "description": "at most five words, single spaces; an agent-written handle, never a fragment of a founder sentence" },
+    "label": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "^[^\\n\\r\\t]+$" },
+    "shortText": { "type": "string", "minLength": 1, "maxLength": 600, "pattern": "^[^\\r\\t]+$" },
+    "profile": { "enum": ["private", "team"], "description": "the surface profile a record may serve: private (his own lanes) or team (shared surfaces, P4 renders opaque ctx: handles)" },
+    "state": { "enum": ["proposed", "accepted", "contested", "retired"] },
+    "use": { "enum": ["private-narrative", "book-quote", "legal-hold", "public-narrative"] },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["visibility", "consumers", "uses", "publication"],
+      "properties": {
+        "visibility": { "enum": ["founder-private", "private", "team", "public"] },
+        "consumers": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/slug" } },
+        "uses": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/use" } },
+        "publication": { "enum": ["do-not-publish", "not-authorized", "team-continuity-exists", "authorized"] }
+      }
+    },
+    "proposer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "model"],
+      "properties": {
+        "family": { "enum": ["anthropic", "openai", "google", "xai", "founder", "import"] },
+        "model": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "run": { "type": "string", "maxLength": 120 }
+      }
+    },
+    "locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repo", "path"],
+      "properties": {
+        "repo": { "$ref": "#/$defs/slug" },
+        "path": { "$ref": "#/$defs/relPath" },
+        "selector": { "type": "string", "maxLength": 120 },
+        "sha256": { "$ref": "#/$defs/sha256OrNull" },
+        "revision": { "type": "string", "pattern": "^[a-f0-9]{40}$", "description": "the git commit the sha256 was taken at" }
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "model", "verdict", "proposal_sha256", "reviewed_at", "receipt"],
+      "properties": {
+        "family": { "enum": ["anthropic", "openai", "google", "xai"] },
+        "model": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "verdict": { "enum": ["approve", "revise", "reject"] },
+        "proposal_sha256": { "$ref": "#/$defs/sha256" },
+        "reviewed_at": { "$ref": "#/$defs/date" },
+        "receipt": { "$ref": "#/$defs/locator", "description": "the review receipt file (repo, path, sha256); a bare reviewer string never accepts anything" }
+      }
+    },
+    "receipts": { "type": "array", "items": { "$ref": "#/$defs/receipt" } },
+    "binds": {
+      "type": "object",
+      "description": "hashes the record was made against (input files, captures, revisions)",
+      "additionalProperties": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }, { "type": "integer" }] }
+    },
+    "capture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["class", "selector", "sha256"],
+      "description": "Pointer plus hash to an authenticated capture. founder-note, kernel-node, baseline-row, session-transcript and meeting-transcript name repo and path; a baseline-row capture also names the git revision of the file it was read at (its selector is the row label, or <label>#sNN for one sentence); the interview is named by id and sha256 only.",
+      "properties": {
+        "class": { "enum": ["founder-note", "kernel-node", "baseline-row", "interview", "session-transcript", "meeting-transcript"] },
+        "repo": { "$ref": "#/$defs/slug" },
+        "path": { "$ref": "#/$defs/relPath" },
+        "id": { "type": "string", "maxLength": 120 },
+        "revision": { "$ref": "#/$defs/gitRevision" },
+        "selector": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "sha256": { "$ref": "#/$defs/sha256OrNull" }
+      },
+      "allOf": [
+        { "if": { "properties": { "class": { "const": "interview" } } }, "then": { "required": ["id"], "not": { "required": ["path"] } }, "else": { "required": ["repo", "path"] } },
+        { "if": { "properties": { "class": { "const": "baseline-row" } } }, "then": { "required": ["revision"] }, "else": { "not": { "required": ["revision"] } } }
+      ]
+    }
+  }
+}

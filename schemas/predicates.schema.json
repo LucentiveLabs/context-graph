@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:origin:graph:schema:predicates",
+  "title": "Predicate and composition table",
+  "description": "schemas/predicates.json: for each predicate, the node-kind pairs it may join, its qualifier, evidence and hierarchy rules, and the compositions it allows. A two-hop chain implies a relation only when the first predicate's compose lists the second; everything else is a discovery hint that implies nothing. Trust never grows by traversal: an implied relation carries the lower confidence, the weaker state and the intersection of the policies of its two edges.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "rule", "query_allowlist", "max_hops", "never_compose", "order", "predicates"],
+  "properties": {
+    "schema": { "const": "origin-graph-predicates/v1" },
+    "rule": { "type": "string" },
+    "query_allowlist": { "type": "array", "uniqueItems": true, "minItems": 1, "items": { "type": "string" } },
+    "max_hops": { "const": 2 },
+    "never_compose": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+    "order": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "visibility", "publication", "profile"],
+      "description": "each list runs from the weakest (or most restricted) value to the strongest (or most open) value, and must equal the fixed trust order of src/core/predicates.mjs exactly; composition reads the code constant, never this copy",
+      "properties": {
+        "state": { "type": "array", "items": { "type": "string" } },
+        "visibility": { "type": "array", "items": { "type": "string" } },
+        "publication": { "type": "array", "items": { "type": "string" } },
+        "profile": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "predicates": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["meaning", "pairs", "compose"],
+        "properties": {
+          "meaning": { "type": "string" },
+          "pairs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["from", "to"],
+              "properties": {
+                "from": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+                "to": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+                "from_anchor_kinds": { "type": "array", "items": { "enum": ["statement", "instruction", "decision", "term", "definition"] } },
+                "to_anchor_kinds": { "type": "array", "items": { "enum": ["statement", "instruction", "decision", "term", "definition"] } }
+              }
+            }
+          },
+          "same_kind": { "type": "boolean" },
+          "acyclic": { "type": "boolean" },
+          "symmetric": { "type": "boolean" },
+          "qualifier": { "type": "array", "items": { "enum": ["supports", "illustrates", "extends"] } },
+          "evidence_kinds": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+          "evidence_anchor_kinds": { "type": "array", "items": { "enum": ["statement", "instruction", "decision", "term", "definition"] } },
+          "evidence_artifact_kinds": { "type": "array", "items": { "enum": ["product-md", "design-md", "brief", "page-block", "faq", "article", "canon-doc", "contract-test"] } },
+          "protects_anchors": { "type": "boolean", "description": "a stored assertion of this predicate may not point at a FounderAnchor; only a new founder capture (the anchor's own field) supersedes or deprecates T0" },
+          "label": { "type": "string" },
+          "compose": { "type": "object", "additionalProperties": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

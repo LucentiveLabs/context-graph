@@ -1,0 +1,17 @@
+{
+  "name": "@lucentive-labs/context-graph",
+  "version": "0.1.0",
+  "description": "Experimental typed context graph, projection CLI, and local read-only MCP server.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22.13.0" },
+  "bin": { "context-graph": "bin/context-graph.mjs" },
+  "exports": { ".": "./src/index.mjs", "./workspace": "./src/workspace.mjs", "./team": "./src/core/team.mjs", "./core/*": "./src/core/*.mjs", "./schemas/*": "./schemas/*" },
+  "files": ["src", "bin", "schemas", "skills", "examples", "README.md", "LICENSE"],
+  "scripts": { "test": "node --test test/*.test.mjs", "check:pack": "node scripts/check-pack.mjs", "prepublishOnly": "npm test && npm run check:pack" },
+  "repository": { "type": "git", "url": "git+https://github.com/LucentiveLabs/context-graph.git" },
+  "homepage": "https://github.com/LucentiveLabs/context-graph#readme",
+  "bugs": { "url": "https://github.com/LucentiveLabs/context-graph/issues" },
+  "publishConfig": { "access": "public", "provenance": true },
+  "dependencies": { "@modelcontextprotocol/sdk": "^1.32.0", "ajv": "^8.20.0", "zod": "^4.6.5" }
+}

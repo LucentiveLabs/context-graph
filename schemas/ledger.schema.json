@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:origin:graph:schema:ledger",
+  "title": "Founder anchor ledger",
+  "description": "sources/graph/anchors/ledger.json: append-only, hash-chained record of accepted founder anchors. An entry binds the anchor's canonical record hash (without state) and its capture hash at acceptance. entry_sha256 is the canonical hash of the entry without entry_sha256; prev_sha256 is the previous entry's entry_sha256 (null for seq 1). A ledgered anchor that changes, disappears or loses its capture fails validation, and so does any rewrite of an entry that a base revision already holds.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "rule", "entries"],
+  "properties": {
+    "schema": { "const": "origin-graph-ledger/v1" },
+    "rule": { "type": "string" },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["seq", "anchor", "record_sha256", "capture_sha256", "accepted_at", "prev_sha256", "entry_sha256"],
+        "properties": {
+          "seq": { "type": "integer", "minimum": 1 },
+          "anchor": { "type": "string", "pattern": "^anchor:[A-Za-z0-9][A-Za-z0-9._#/-]*$" },
+          "record_sha256": { "$ref": "urn:origin:graph:schema:common#/$defs/sha256" },
+          "capture_sha256": { "$ref": "urn:origin:graph:schema:common#/$defs/sha256OrNull" },
+          "accepted_at": { "$ref": "urn:origin:graph:schema:common#/$defs/date" },
+          "prev_sha256": { "$ref": "urn:origin:graph:schema:common#/$defs/sha256OrNull" },
+          "entry_sha256": { "$ref": "urn:origin:graph:schema:common#/$defs/sha256" }
+        }
+      }
+    }
+  }
+}

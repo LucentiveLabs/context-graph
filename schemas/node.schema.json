@@ -1,0 +1,373 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:origin:graph:schema:node",
+  "title": "Context graph node",
+  "description": "One node of the context graph, by kind. Stored kinds live as small reviewed files under sources/graph/; imported kinds (Source, Item, Excerpt, KernelNode, Question, Decision, and FounderAnchors of founder notes, baseline rows and the interview) are derived from the existing records at build time and never stored. No node carries founder wording: anchors hold a pointer, a hash and a handle of at most five words.",
+  "type": "object",
+  "required": ["kind"],
+  "properties": {
+    "kind": { "enum": ["FounderAnchor", "CandidateStatement", "Inference", "KernelNode", "Source", "Item", "Excerpt", "Concept", "Question", "Decision", "Product", "Artifact", "Claim", "Consumer", "Projection", "Intent", "EvalCase"] }
+  },
+  "discriminator": { "propertyName": "kind" },
+  "oneOf": [
+    { "$ref": "#/$defs/FounderAnchor" },
+    { "$ref": "#/$defs/CandidateStatement" },
+    { "$ref": "#/$defs/Inference" },
+    { "$ref": "#/$defs/KernelNode" },
+    { "$ref": "#/$defs/Source" },
+    { "$ref": "#/$defs/Item" },
+    { "$ref": "#/$defs/Excerpt" },
+    { "$ref": "#/$defs/Concept" },
+    { "$ref": "#/$defs/Question" },
+    { "$ref": "#/$defs/Decision" },
+    { "$ref": "#/$defs/Product" },
+    { "$ref": "#/$defs/Artifact" },
+    { "$ref": "#/$defs/Claim" },
+    { "$ref": "#/$defs/Consumer" },
+    { "$ref": "#/$defs/Projection" },
+    { "$ref": "#/$defs/Intent" },
+    { "$ref": "#/$defs/EvalCase" }
+  ],
+  "$defs": {
+    "base": {
+      "type": "object",
+      "required": ["id", "kind", "profile", "policy", "state", "proposer", "review_receipts", "valid_from", "valid_to"],
+      "properties": {
+        "id": { "$ref": "urn:origin:graph:schema:common#/$defs/nodeId" },
+        "kind": { "type": "string" },
+        "profile": { "$ref": "urn:origin:graph:schema:common#/$defs/profile" },
+        "policy": { "$ref": "urn:origin:graph:schema:common#/$defs/policy" },
+        "state": { "$ref": "urn:origin:graph:schema:common#/$defs/state" },
+        "proposer": { "$ref": "urn:origin:graph:schema:common#/$defs/proposer" },
+        "review_receipts": { "$ref": "urn:origin:graph:schema:common#/$defs/receipts" },
+        "valid_from": { "$ref": "urn:origin:graph:schema:common#/$defs/date" },
+        "valid_to": { "$ref": "urn:origin:graph:schema:common#/$defs/dateOrNull" },
+        "binds": { "$ref": "urn:origin:graph:schema:common#/$defs/binds" }
+      }
+    },
+    "ids": { "type": "array", "uniqueItems": true, "items": { "$ref": "urn:origin:graph:schema:common#/$defs/nodeId" } },
+    "FounderAnchor": {
+      "description": "T0 pointer: a hash-bound pointer to an authenticated capture and a handle of at most five words. Never edited after acceptance (sources/graph/anchors/ledger.json); superseded only by a new founder capture (for baseline rows, a new pinned revision of the row). instruction is a founder instruction to research or build (a founder-note task). must_appear (decision and definition only) names constraints P4 coverage checks, as pointers and hashes, never as his wording.",
+      "required": ["anchor_kind", "label", "capture"],
+      "properties": {
+        "kind": { "const": "FounderAnchor" },
+        "anchor_kind": { "enum": ["statement", "instruction", "decision", "term", "definition"] },
+        "label": { "$ref": "urn:origin:graph:schema:common#/$defs/label5" },
+        "capture": { "$ref": "urn:origin:graph:schema:common#/$defs/capture" },
+        "scope": { "type": "string", "maxLength": 80, "pattern": "^[a-z0-9][a-z0-9 :/-]*$" },
+        "supersedes": { "$ref": "#/$defs/ids" },
+        "active": { "type": "boolean" },
+        "preferred": { "$ref": "urn:origin:graph:schema:common#/$defs/label5" },
+        "deprecated": { "type": "array", "uniqueItems": true, "items": { "$ref": "urn:origin:graph:schema:common#/$defs/label5" } },
+        "defines": { "$ref": "urn:origin:graph:schema:common#/$defs/nodeId" },
+        "must_appear": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "label", "requirement", "applies_to"],
+            "properties": {
+              "id": { "$ref": "urn:origin:graph:schema:common#/$defs/slug" },
+              "label": { "$ref": "urn:origin:graph:schema:common#/$defs/label5Item" },
+              "requirement": { "enum": ["wording", "topic", "artifact", "link", "absence"], "description": "wording: the exact words of the capture selection must appear; topic: the subject must be explained; artifact: the target artifact must exist; link: the target node must be referenced; absence: the subject must not appear" },
+              "subject": { "type": "string", "maxLength": 200, "pattern": "^([a-z]+:[A-Za-z0-9][A-Za-z0-9._#/-]*|[a-z0-9]+(-[a-z0-9]+)*)$", "description": "what must (topic) or must not (absence) appear: a node id, or a topic slug such as pricing" },
+              "target": { "$ref": "urn:origin:graph:schema:common#/$defs/nodeId", "description": "the artifact that must exist, or the node that must be referenced" },
+              "selector": { "type": "string", "maxLength": 120, "description": "where the required wording sits in the capture (wording only)" },
+              "text_sha256": { "$ref": "urn:origin:graph:schema:common#/$defs/sha256", "description": "sha256 of the required wording, normalised (wording only)" },
+              "applies_to": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["scope"],
+                "description": "where the constraint holds: every page of the portfolio, the pages of one product (optionally one page of it), or one artifact",
+                "properties": {
+                  "scope": { "enum": ["all-pages", "product", "artifact"] },
+                  "target": { "$ref": "urn:origin:graph:schema:common#/$defs/nodeId" },
+                  "page": { "$ref": "urn:origin:graph:schema:common#/$defs/slug" }
+                },
+                "allOf": [{ "if": { "properties": { "scope": { "enum": ["product", "artifact"] } } }, "then": { "required": ["target"] }, "else": { "not": { "anyOf": [{ "required": ["target"] }, { "required": ["page"] }] } } }]
+              }
+            },
+            "allOf": [
+              { "if": { "properties": { "requirement": { "const": "wording" } } }, "then": { "required": ["selector", "text_sha256"] } },
+              { "if": { "properties": { "requirement": { "enum": ["topic", "absence"] } } }, "then": { "required": ["subject"] } },
+              { "if": { "properties": { "requirement": { "enum": ["artifact", "link"] } } }, "then": { "required": ["target"] } }
+            ]
+          }
+        }
+      },
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        { "if": { "properties": { "anchor_kind": { "const": "decision" } } }, "then": { "required": ["active", "scope"] } },
+        { "if": { "properties": { "anchor_kind": { "const": "term" } } }, "then": { "required": ["preferred", "scope"] }, "else": { "not": { "anyOf": [{ "required": ["preferred"] }, { "required": ["deprecated"] }] } } },
+        { "if": { "properties": { "anchor_kind": { "const": "definition" } } }, "then": { "required": ["defines"] }, "else": { "not": { "required": ["defines"] } } },
+        { "if": { "properties": { "anchor_kind": { "enum": ["decision", "definition"] } } }, "else": { "not": { "required": ["must_appear"] } } }
+      ],
+      "unevaluatedProperties": false
+    },
+    "CandidateStatement": {
+      "description": "A founder quote reported in an agent account (memory file, PR body, plan README), not yet matched to a raw transcript. Stored as a pointer to the account plus the sha256 of the normalised quote; never T0.",
+      "allOf": [{ "$ref": "#/$defs/base" }],
+      "required": ["label", "reported_in", "quote_sha256", "would_be", "verification", "form"],
+      "properties": {
+        "kind": { "const": "CandidateStatement" },
+        "label": { "$ref": "urn:origin:graph:schema:common#/$defs/label5" },
+        "reported_in": { "$ref": "urn:origin:graph:schema:common#/$defs/locator" },
+        "quote_sha256": { "$ref": "urn:origin:graph:schema:common#/$defs/sha256" },
+        "would_be": { "enum": ["statement", "decision", "term", "definition"] },
+        "form": { "enum": ["quote", "paraphrase", "selection"], "description": "quote: words the account presents as his; paraphrase: the account's own summary of his position; selection: an option he picked, worded by an agent. Only a quote can verify; a paraphrase or selection is never his wording" },
+        "verification": { "enum": ["unverified", "pasted", "excerpt", "verified", "matched", "covered", "unmatched"], "description": "unverified: not found in his typed turns; verified: a quote found contiguous in one of his typed turns that is not captured (verified_in names the turn; no anchor carries it); pasted: found contiguous only inside a pasted block, which is not automatically his; excerpt: its parts found in order in one of his turns but with words skipped at an ellipsis, so not verified; matched: a quote whose exact words are found contiguous in his own typed text or in a statement he confirmed, now carried by matched_anchor; covered: a quote, paraphrase or selection whose position a founder anchor now carries though its wording is not his verified wording (agent judgment); unmatched: searched and contradicted" },
+        "matched_anchor": { "$ref": "urn:origin:graph:schema:common#/$defs/nodeId", "description": "the FounderAnchor that carries the statement (matched or covered only)" },
+        "verified_in": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["channel", "session", "message_uuid", "timestamp"],
+          "description": "the typed turn a verified quote was found in, by session and message id only; the turn is not captured",
+          "properties": {
+            "channel": { "enum": ["Claude Code"] },
+            "session": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
+            "message_uuid": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
+            "timestamp": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" }
+          }
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "Inference": {
+      "description": "A rule or position an agent derived. derived_from names the founder anchors it rests on; an inference with none must say agent_guess true and renders as an agent guess. It carries the agent's own wording (statement) or, for a rule written into a founder file, a pointer to it (located_in with its sha256) instead of a copy. provenance_class says what the provenance record found: agent-fence (git holds no founder quote), unclear, or unclassified (newer than the record).",
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        { "anyOf": [{ "required": ["statement"] }, { "required": ["located_in"], "properties": { "located_in": { "required": ["selector", "sha256"] } } }] }
+      ],
+      "required": ["label", "derived_from", "agent_guess", "confidence"],
+      "properties": {
+        "kind": { "const": "Inference" },
+        "label": { "$ref": "urn:origin:graph:schema:common#/$defs/label5" },
+        "statement": { "$ref": "urn:origin:graph:schema:common#/$defs/shortText", "description": "the agent's own wording of the rule" },
+        "derived_from": { "$ref": "#/$defs/ids" },
+        "agent_guess": { "type": "boolean" },
+        "acts_as_restriction": { "type": "boolean" },
+        "located_in": { "$ref": "urn:origin:graph:schema:common#/$defs/locator" },
+        "revision": { "$ref": "urn:origin:graph:schema:common#/$defs/gitRevision" },
+        "provenance_class": { "enum": ["agent-fence", "unclear", "unclassified"] },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "unevaluatedProperties": false
+    },
+    "KernelNode": {
+      "description": "Imported: an origin kernel node (nodes/index.json), by id and the sha256 of its canonical entry. Its beats are never copied.",
+      "allOf": [{ "$ref": "#/$defs/base" }],
+      "required": ["label", "node_status", "source_ref", "capture"],
+      "properties": {
+        "kind": { "const": "KernelNode" },
+        "label": { "$ref": "urn:origin:graph:schema:common#/$defs/label" },
+        "node_status": { "enum": ["ingested", "woven"] },
+        "source_ref": { "type": "string", "maxLength": 120 },
+        "capture": { "$ref": "urn:origin:graph:schema:common#/$defs/capture" }
+      },
+      "unevaluatedProperties": false
+    },
+    "Source": {
+      "description": "Imported: a registered SRC- source, by id, capture pointer and hash.",
+      "allOf": [{ "$ref": "#/$defs/base" }],
+      "required": ["label", "source_kind", "capture", "authority_origin"],
+      "properties": {
+        "kind": { "const": "Source" },
+        "label": { "$ref": "urn:origin:graph:schema:common#/$defs/label" },
+        "source_kind": { "type": "string", "maxLength": 40 },
+        "capture": { "$ref": "urn:origin:graph:schema:common#/$defs/locator" },
+        "authority_origin": { "enum": ["founder", "third-party", null] }
+      },
+      "unevaluatedProperties": false
+    },
+    "Item": {
+      "description": "Imported: an extracted item (<SRC-id>#I001). Evidence score, alignment and fit stay separate fields and are never merged with edge confidence. Its statement is never copied.",
+      "allOf": [{ "$ref": "#/$defs/base" }],
+      "required": ["source", "item_id", "item_type", "epistemic_type", "evidence", "disposition", "score", "fit", "alignment_relation", "permitted_consumers", "stale"],
+      "properties": {
+        "kind": { "const": "Item" },
+        "source": { "$ref": "urn:origin:graph:schema:common#/$defs/nodeId" },
+        "item_id": { "type": "string", "pattern": "^I\\d{3}$" },
+        "item_type": { "type": ["string", "null"], "maxLength": 40 },
+        "epistemic_type": { "type": ["string", "null"], "maxLength": 40 },
+        "evidence": { "type": ["string", "null"], "maxLength": 40 },
+        "disposition": { "type": ["string", "null"], "maxLength": 40 },
+        "score": { "type": ["integer", "null"] },
+        "fit": { "type": ["integer", "null"] },
+        "alignment_relation": { "type": ["string", "null"], "maxLength": 40 },
+        "permitted_consumers": { "type": "array", "items": { "type": "string" } },
+        "stale": { "type": "boolean" }
+      },
+      "unevaluatedProperties": false
+    },
+    "Excerpt": {
+      "description": "Imported: a verbatim excerpt (<SRC-id>#E001) by id, speaker and locator; its text is never copied.",
+      "allOf": [{ "$ref": "#/$defs/base" }],
+      "required": ["source", "excerpt_id", "speaker", "verified_against_sha256"],
+      "properties": {
+        "kind": { "const": "Excerpt" },
+        "source": { "$ref": "urn:origin:graph:schema:common#/$defs/nodeId" },
+        "excerpt_id": { "type": "string", "pattern": "^E\\d{3}$" },
+        "speaker": { "type": ["string", "null"], "maxLength": 80 },
+        "verified_against_sha256": { "$ref": "urn:origin:graph:schema:common#/$defs/sha256OrNull" }
+      },
+      "unevaluatedProperties": false
+    },
+    "Concept": {
+      "description": "A bounded idea across sources: definition, aliases, explicit excludes, version. Model-proposed and reviewed.",
+      "allOf": [{ "$ref": "#/$defs/base" }],
+      "required": ["label", "definition", "aliases", "excludes", "version"],
+      "properties": {
+        "kind": { "const": "Concept" },
+        "label": { "$ref": "urn:origin:graph:schema:common#/$defs/label" },
+        "definition": { "$ref": "urn:origin:graph:schema:common#/$defs/shortText" },
+        "aliases": { "type": "array", "uniqueItems": true, "items": { "$ref": "urn:origin:graph:schema:common#/$defs/label" } },
+        "excludes": { "type": "array", "uniqueItems": true, "minItems": 1, "items": { "$ref": "urn:origin:graph:schema:common#/$defs/label" } },
+        "examples": { "$ref": "#/$defs/ids" },
+        "version": { "type": "integer", "minimum": 1 }
+      },
+      "unevaluatedProperties": false
+    },
+    "Question": {
+      "description": "Imported: a proposal of position.json (open, decided or resolved).",
+      "allOf": [{ "$ref": "#/$defs/base" }],
+      "required": ["label", "proposal_id", "question_status"],
+      "properties": {
+        "kind": { "const": "Question" },
+        "label": { "$ref": "urn:origin:graph:schema:common#/$defs/label" },
+        "proposal_id": { "type": "string", "pattern": "^open-\\d{4}-\\d{2}-\\d{2}-[a-z0-9-]+$" },
+        "question_status": { "enum": ["open", "decided", "resolved"] }
+      },
+      "unevaluatedProperties": false
+    },
+    "Decision": {
+      "description": "Imported: an adopted proposal of position.json decisions[].",
+      "allOf": [{ "$ref": "#/$defs/base" }],
+      "required": ["label", "proposal_id", "adopted_at", "approved_by", "evidence_ref", "evidence_sha256"],
+      "properties": {
+        "kind": { "const": "Decision" },
+        "label": { "$ref": "urn:origin:graph:schema:common#/$defs/label" },
+        "proposal_id": { "type": "string", "pattern": "^open-\\d{4}-\\d{2}-\\d{2}-[a-z0-9-]+$" },
+        "adopted_at": { "$ref": "urn:origin:graph:schema:common#/$defs/date" },
+        "approved_by": { "const": "founder" },
+        "evidence_ref": { "anyOf": [{ "type": "string", "pattern": "^SRC-[a-z0-9-]+#N\\d{2}$" }, { "type": "null" }], "description": "the founder-note pointer of the adoption, when the evidence is one" },
+        "evidence_sha256": { "$ref": "urn:origin:graph:schema:common#/$defs/sha256OrNull", "description": "sha256 of the evidence string as position.json records it; the string itself is not copied" }
+      },
+      "unevaluatedProperties": false
+    },
+    "Product": {
+      "description": "A portfolio entity with its class and relations. Founder Definitions win over docs. Imported products keep the register's class, its ownership (owned) and whether the register declares it a non-project (non_project, the organisational pillars); private targets carry class private-target.",
+      "allOf": [{ "$ref": "#/$defs/base" }],
+      "required": ["label", "product_class", "registry", "relations"],
+      "properties": {
+        "kind": { "const": "Product" },
+        "label": { "$ref": "urn:origin:graph:schema:common#/$defs/label" },
+        "product_class": { "enum": ["product", "venture", "rail", "programme", "parent", "related-project", "pillar", "internal-tool", "open-source", "related", "private-target"] },
+        "owned": { "type": "boolean", "description": "the register's owned flag; absent when the register records none (non-projects)" },
+        "non_project": { "type": "boolean", "description": "true for a declared non-project of the register (an organisational pillar)" },
+        "registry": { "$ref": "urn:origin:graph:schema:common#/$defs/locator" },
+        "relations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["powers", "belongs_to", "productizes", "depends_on", "independent_of"],
+          "properties": {
+            "powers": { "$ref": "#/$defs/ids" },
+            "belongs_to": { "$ref": "#/$defs/ids" },
+            "productizes": { "$ref": "#/$defs/ids" },
+            "depends_on": { "$ref": "#/$defs/ids" },
+            "independent_of": { "$ref": "#/$defs/ids" }
+          }
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "Artifact": {
+      "description": "A versioned PRODUCT.md, brief, page block, FAQ, article, canon doc or contract test, by locator and hash. Its owning repo stays the authority.",
+      "allOf": [{ "$ref": "#/$defs/base" }],
+      "required": ["label", "artifact_kind", "locator"],
+      "properties": {
+        "kind": { "const": "Artifact" },
+        "label": { "$ref": "urn:origin:graph:schema:common#/$defs/label" },
+        "artifact_kind": { "enum": ["product-md", "design-md", "brief", "page-block", "faq", "article", "canon-doc", "contract-test"] },
+        "locator": { "$ref": "urn:origin:graph:schema:common#/$defs/locator" },
+        "product": { "$ref": "urn:origin:graph:schema:common#/$defs/nodeId" }
+      },
+      "unevaluatedProperties": false
+    },
+    "Claim": {
+      "description": "A claim an artifact states, by selector and the sha256 of its text; the text stays in the artifact. The label is the agent's paraphrase of at most 25 words. claim_type is its epistemic type; facet says what the claim is about (the product's definition, audience, promise, terms, constraints, relations or status); about names the products it speaks of (each a depends_on edge). binds.artifact_sha256 names the artifact version it was read from: a claim whose artifact changed is stale.",
+      "allOf": [{ "$ref": "#/$defs/base" }],
+      "required": ["label", "artifact", "selector", "text_sha256", "claim_type"],
+      "properties": {
+        "kind": { "const": "Claim" },
+        "label": { "$ref": "urn:origin:graph:schema:common#/$defs/label" },
+        "artifact": { "$ref": "urn:origin:graph:schema:common#/$defs/nodeId" },
+        "selector": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "text_sha256": { "$ref": "urn:origin:graph:schema:common#/$defs/sha256" },
+        "claim_type": { "enum": ["testimony", "interpretation", "evidence", "capability", "intention", "fact"] },
+        "facet": { "enum": ["definition", "audience", "promise", "term", "constraint", "relation", "status"] },
+        "about": { "$ref": "#/$defs/ids" }
+      },
+      "unevaluatedProperties": false
+    },
+    "Consumer": {
+      "description": "An audience with its permitted uses (imported from sources/consumers.json, or stored). A consumer string never grants access.",
+      "allOf": [{ "$ref": "#/$defs/base" }],
+      "required": ["label", "audience", "uses", "packet"],
+      "properties": {
+        "kind": { "const": "Consumer" },
+        "label": { "$ref": "urn:origin:graph:schema:common#/$defs/label" },
+        "audience": { "$ref": "urn:origin:graph:schema:common#/$defs/label" },
+        "uses": { "type": "array", "uniqueItems": true, "minItems": 1, "items": { "$ref": "urn:origin:graph:schema:common#/$defs/use" } },
+        "packet": { "type": "boolean" }
+      },
+      "unevaluatedProperties": false
+    },
+    "Projection": {
+      "description": "An approved export for one consumer and product, bound to its payload hash, policy revision, source snapshot and a revalidation date. Team references use the opaque ctx: handle.",
+      "allOf": [{ "$ref": "#/$defs/base" }],
+      "required": ["label", "consumer", "product", "handle", "payload_sha256", "policy_revision", "source_snapshot", "revalidate_by"],
+      "properties": {
+        "kind": { "const": "Projection" },
+        "label": { "$ref": "urn:origin:graph:schema:common#/$defs/label" },
+        "consumer": { "$ref": "urn:origin:graph:schema:common#/$defs/nodeId" },
+        "product": { "$ref": "urn:origin:graph:schema:common#/$defs/nodeId" },
+        "handle": { "type": "string", "pattern": "^ctx:[a-f0-9]{8}$" },
+        "payload_sha256": { "$ref": "urn:origin:graph:schema:common#/$defs/sha256" },
+        "policy_revision": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "source_snapshot": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "revalidate_by": { "$ref": "urn:origin:graph:schema:common#/$defs/date" }
+      },
+      "unevaluatedProperties": false
+    },
+    "Intent": {
+      "description": "A task's intent receipt reference (intent-card.v2 lives in IAS; P5). Holds the root and parent intents and the source refs, never his words.",
+      "allOf": [{ "$ref": "#/$defs/base" }],
+      "required": ["label", "task_id", "root_intent", "parent_intent", "source_refs"],
+      "properties": {
+        "kind": { "const": "Intent" },
+        "label": { "$ref": "urn:origin:graph:schema:common#/$defs/label" },
+        "task_id": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "root_intent": { "$ref": "urn:origin:graph:schema:common#/$defs/nodeId" },
+        "parent_intent": { "anyOf": [{ "$ref": "urn:origin:graph:schema:common#/$defs/nodeId" }, { "type": "null" }] },
+        "source_refs": { "$ref": "#/$defs/ids" }
+      },
+      "unevaluatedProperties": false
+    },
+    "EvalCase": {
+      "description": "A pre-registered replay case (evals/incident-replay-v1.md), by case id, grade and the node ids of its critical items.",
+      "allOf": [{ "$ref": "#/$defs/base" }],
+      "required": ["label", "set", "case", "grade", "counterexample", "critical_refs"],
+      "properties": {
+        "kind": { "const": "EvalCase" },
+        "label": { "$ref": "urn:origin:graph:schema:common#/$defs/label" },
+        "set": { "$ref": "urn:origin:graph:schema:common#/$defs/slug" },
+        "case": { "type": "string", "pattern": "^[CLX]\\d{2}$" },
+        "grade": { "enum": ["A", "B", "C"] },
+        "counterexample": { "type": "boolean" },
+        "critical_refs": { "$ref": "#/$defs/ids" }
+      },
+      "unevaluatedProperties": false
+    }
+  }
+}

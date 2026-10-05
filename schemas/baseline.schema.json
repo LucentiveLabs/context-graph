@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:origin:graph:schema:baseline",
+  "title": "Pinned baseline revisions",
+  "description": "sources/graph/anchors/baseline-revisions.json: the revisions of the founder-locked baseline the graph anchors, oldest first, by git revision and file sha256, with each law row's hash and each sentence's hash and class. It holds no baseline text. Classes come from the provenance record named per revision, and from the provenance addendum (anchors/baseline-provenance.json) for the sentences it classifies: baseline-text (row text that is not a restrictive clause, unless the addendum classifies it), founder-clause (a restrictive clause the record shows as his words), agent-fence (a restrictive clause git holds no founder quote for), unclear, and unclassified (a restrictive clause newer than the record that the addendum does not classify). baseline-text and founder-clause sentences are T0 anchors; the other three become Inference nodes derived from their row anchor. Append-only: pin-baseline adds a revision, and an earlier revision never changes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "rule", "baseline", "classification_source", "revisions"],
+  "properties": {
+    "schema": { "const": "origin-graph-baseline/v1" },
+    "rule": { "type": "string" },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repo", "path"],
+      "properties": { "repo": { "$ref": "urn:origin:graph:schema:common#/$defs/slug" }, "path": { "$ref": "urn:origin:graph:schema:common#/$defs/relPath" } }
+    },
+    "classification_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repo", "path"],
+      "description": "the provenance record pin-baseline classifies new revisions with (its latest commit at pin time)",
+      "properties": { "repo": { "$ref": "urn:origin:graph:schema:common#/$defs/slug" }, "path": { "$ref": "urn:origin:graph:schema:common#/$defs/relPath" } }
+    },
+    "revisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["revision", "date", "file_sha256", "classification", "rows"],
+        "properties": {
+          "revision": { "$ref": "urn:origin:graph:schema:common#/$defs/gitRevision" },
+          "date": { "$ref": "urn:origin:graph:schema:common#/$defs/date" },
+          "file_sha256": { "$ref": "urn:origin:graph:schema:common#/$defs/sha256" },
+          "classification": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["repo", "path", "revision", "sha256", "clauses"],
+            "properties": {
+              "repo": { "$ref": "urn:origin:graph:schema:common#/$defs/slug" },
+              "path": { "$ref": "urn:origin:graph:schema:common#/$defs/relPath" },
+              "revision": { "$ref": "urn:origin:graph:schema:common#/$defs/gitRevision" },
+              "sha256": { "$ref": "urn:origin:graph:schema:common#/$defs/sha256" },
+              "clauses": { "type": "integer", "minimum": 0 },
+              "addendum": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["path", "entries", "entries_sha256"],
+                "description": "the provenance addendum entries applied to this revision: the file, how many, and the digest of those entries and the basis definitions they cite (canonical JSON, entries sorted by sha256)",
+                "properties": {
+                  "path": { "$ref": "urn:origin:graph:schema:common#/$defs/relPath" },
+                  "entries": { "type": "integer", "minimum": 1 },
+                  "entries_sha256": { "$ref": "urn:origin:graph:schema:common#/$defs/sha256" }
+                }
+              }
+            }
+          },
+          "rows": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["label", "row_sha256", "sentences"],
+              "properties": {
+                "label": { "type": "string", "minLength": 1, "maxLength": 60, "pattern": "^\\S+( \\S+){0,4}$" },
+                "row_sha256": { "$ref": "urn:origin:graph:schema:common#/$defs/sha256" },
+                "sentences": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["n", "sha256", "class"],
+                    "properties": {
+                      "n": { "type": "integer", "minimum": 1 },
+                      "sha256": { "$ref": "urn:origin:graph:schema:common#/$defs/sha256" },
+                      "class": { "enum": ["baseline-text", "founder-clause", "agent-fence", "unclear", "unclassified"] }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

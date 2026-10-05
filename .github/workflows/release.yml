@@ -12,7 +12,12 @@ concurrency:
   group: release-main
   cancel-in-progress: false
 jobs:
+  security:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/security-gate.yml
   gate:
+    needs: security
     if: github.repository == 'LucentiveLabs/context-graph' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:

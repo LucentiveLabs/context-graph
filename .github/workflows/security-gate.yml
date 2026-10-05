@@ -1,6 +1,7 @@
 # Reusable security gate — drop into each repo as .github/workflows/security-gate.yml
 #
-# Runs on every PR. Hardened policy: secrets, HIGH/CRITICAL dependency CVEs,
+# Runs on reviewed main before publication and on schedule. Hardened policy:
+# secrets, HIGH/CRITICAL dependency CVEs,
 # and CRITICAL/HIGH/ERROR SAST findings block; lower-severity deps/SAST findings
 # report into the job summary. Deterministic, non-LLM → permitted in GitHub
 # Actions by the harness contract.
@@ -11,7 +12,7 @@
 name: security-gate
 
 on:
-  pull_request_target:
+  workflow_call:
   workflow_dispatch:
   schedule:
     # Weekly recurring scan (C5) — Mon 06:00 UTC. Catches newly-disclosed
@@ -22,7 +23,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: security-gate-${{ github.event.pull_request.number || github.ref }}
+  group: security-gate-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -32,20 +33,20 @@ env:
 
 jobs:
   security:
+    if: github.repository == 'LucentiveLabs/context-graph' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout trusted scanner
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          ref: ${{ github.sha }}
           path: trusted
           persist-credentials: false
 
-      - name: Checkout scan target (data only, never executed)
+      - name: Checkout reviewed scan target
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.sha }}
           path: candidate
           fetch-depth: 0
           persist-credentials: false
@@ -76,11 +77,11 @@ jobs:
 
       - name: Run security gate
         env:
-          EXPECTED_SCAN_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_SCAN_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           test "$(git -C candidate rev-parse HEAD)" = "$EXPECTED_SCAN_SHA"
           test "$(git -C candidate rev-parse --is-shallow-repository)" = false
-          # Only the base scanner executes. No package install, candidate script,
-          # PR-controlled suppression policy, cache, write token or secret is used.
+          # Only reviewed main executes. No package install, target script,
+          # target suppression policy, cache, write token or secret is used.
           bash trusted/scripts/security-scan.sh --repo "$GITHUB_WORKSPACE/candidate" --untrusted --mode full --fail-on high

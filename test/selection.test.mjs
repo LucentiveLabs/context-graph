@@ -81,7 +81,7 @@ test('projection builder exports the full eligible concept pool with conservativ
   assert.deepEqual(ideas[0].exclusions, ['No therapeutic claim']);
   assert.equal(ideas[0].evidence[0].kind, 'unknown');
   assert.equal(ideas[0].evidence.length, 2);
-  assert.equal(ideas[0].evidence[1].kind, 'primary-excerpt');
+  assert.equal(ideas[0].evidence[1].kind, 'unknown', 'hash verification alone does not establish primary-source status');
   assert.match(basis[ideas[0].handle].hashes['item:sample#I001'], /^[a-f0-9]{64}$/);
   assert.match(basis[ideas[0].handle].hashes['excerpt:sample#E001'], /^[a-f0-9]{64}$/);
   assert.equal(server.recordRef('item:sample#I001'), 'item:sample#I001');

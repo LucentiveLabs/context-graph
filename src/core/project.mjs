@@ -126,11 +126,9 @@ export function buildPayload(view, server, key, { date }) {
       // Source text remains in the owning adapter. Only opaque, eligible example
       // handles and conservative evidence kinds cross the projection boundary.
       const refs = (concept.examples || []).filter((id) => server.refEligible(id));
-      const evidence = refs.map((id) => {
-        const r = server.recAny(id);
-        const kind = r?.kind === "Excerpt" && r.verified_against_sha256 ? "primary-excerpt" : "unknown";
-        return { handle: ctxHandle(view.salt, scope, `evidence:${id}`), kind };
-      });
+      // A hash-verified excerpt may quote a research digest, not a primary
+      // source. Only the owning evidence resolver can establish its kind.
+      const evidence = refs.map((id) => ({ handle: ctxHandle(view.salt, scope, `evidence:${id}`), kind: "unknown" }));
       add(concept.id.replace(/^concept:/, ""), "ideas", `${concept.label}: ${concept.definition}`, [concept.id, edge.id, ...refs], {
         relation: edge.predicate === "documented_influence" ? "documented influence" : "candidate application",
         confidence: edge.confidence, exclusions: concept.excludes || [], evidence,

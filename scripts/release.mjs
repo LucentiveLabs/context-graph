@@ -33,7 +33,9 @@ export function assertPublished(receipt, published) {
 }
 export function readReleaseArtifact(receipt, directory = "release-artifact") {
   if (typeof receipt.file !== "string" || !/^[a-z0-9][a-z0-9.-]*\.tgz$/.test(receipt.file)) throw new Error("Invalid artifact name");
-  const file = join(directory, receipt.file); const bytes = readFileSync(file);
+  // npm can parse a bare "directory/archive.tgz" as GitHub shorthand.
+  // Pass an explicit local path to the exact artifact whose bytes we verify.
+  const file = resolve(directory, receipt.file); const bytes = readFileSync(file);
   if (digest(bytes) !== receipt.sha256 || `sha512-${digest(bytes, "sha512", "base64")}` !== receipt.integrity) throw new Error("Artifact digest differs");
   return file;
 }

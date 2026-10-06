@@ -4,6 +4,7 @@
 
 - Add a source-install quickstart, plain-language architecture and diagrams, projection/API reference, writing and evaluation guide, contributor instructions, and security reporting guidance.
 - State npm release availability explicitly and document current selection and check-result semantics.
+- Resolve the verified release tarball to an absolute local path so npm does not interpret it as a GitHub package reference.
 
 ## 0.1.0 source baseline
 

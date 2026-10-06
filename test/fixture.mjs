@@ -5,7 +5,7 @@ export const projection = () => ({
   items: [
     { handle: "ctx:22222222", section: "definitions", text: "The sample product keeps project decisions with their source records.", binding: true },
     { handle: "ctx:33333333", section: "terms", text: "Use project record; old record is deprecated.", binding: true, preferred: ["project record"], deprecated: [{ text: "old record", re: "\\bold record\\b" }] },
-    { handle: "ctx:44444444", section: "ideas", text: "Optional inspiration for the sample explanation.", binding: false },
+    { handle: "ctx:44444444", section: "ideas", text: "Optional inspiration for explaining project decisions from source records.", binding: false },
   ],
 });
 export const markdown = (payload = projection()) => `# Synthetic context example\n\nThis fixture contains no private source records.\n\n\`\`\`json context-projection\n${JSON.stringify(payload, null, 2)}\n\`\`\`\n`;

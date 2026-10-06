@@ -252,7 +252,7 @@ const line = (it) => {
   return `- [${it.handle}] ${it.text}${detail}`;
 };
 
-const STOP = new Set(["the", "and", "for", "with", "that", "this", "from", "into", "page", "pages", "make", "copy", "site", "edit", "edits", "work"]);
+const STOP = new Set(["the", "and", "for", "with", "that", "this", "from", "into", "page", "pages", "make", "copy", "site", "edit", "edits", "work", "explain", "write", "article", "story", "ideas", "find", "describe", "product", "about"]);
 /** Task words that rank non-binding items: lower case, four letters or more, minus a few that every story task shares. */
 export const taskWords = (task) => [...new Set(String(task || "").toLowerCase().match(/[\p{L}\p{N}][\p{L}\p{N}-]{3,}/gu) || [])].filter((w) => !STOP.has(w));
 const overlap = (words, text) => { const t = String(text).toLowerCase(); return words.reduce((n, w) => n + (t.includes(w) ? 1 : 0), 0); };
@@ -270,7 +270,10 @@ export function teamBundle(payloads0, { task = "", products = [], classes = ["st
   const items = dedupe(payloads.flatMap((p) => (p.items || []).map((it) => ({ ...it, projection: p.projection, parent: p.scope === "parent" }))));
   const story = classes.includes("story");
   const wantsIdeas = story || classes.includes("library");
-  const words = taskWords(task);
+  // Naming a product selects its projection; it is not evidence of topical
+  // relevance (for example a generic brand word appearing in an unrelated idea).
+  const productWords = new Set(payloads.filter((p) => products.includes(p.product)).flatMap((p) => taskWords(`${p.product.replaceAll("-", " ")} ${p.label || ""}`)));
+  const words = taskWords(task).filter((word) => !productWords.has(word));
   const inScope = items.filter((it) => !(it.parent && it.section === "map" && products.length && it.about && !products.includes(it.about)))
     .filter((it) => it.section !== "acceptance" || it.applies_to.scope === "all-pages" || products.includes(it.applies_to.product));
   const allows = (it) => it.binding || story || (it.section === "ideas" && wantsIdeas) || (it.section === "checks" && classes.includes("governance"));

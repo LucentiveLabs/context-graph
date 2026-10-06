@@ -58,7 +58,7 @@ Bundle fields include `profile`, `revision`, `text`, `sha256`, `items`, `binding
 | `bindings-over-budget` | Mandatory context and its report exceed the budget |
 | `not-requested` | Classes exclude ideas |
 
-The selector uses task-word overlap, then evidence quality, confidence and stable handles. Zero-overlap ideas are excluded from the candidate selection, never presented as relevant. This is a lexical heuristic, not a measure of truth or a promise of exhaustive research.
+Product-name words select scope and do not count as topical relevance. The selector uses task-word overlap, then evidence quality, confidence and stable handles. Zero-overlap ideas are excluded from the candidate selection, never presented as relevant. This is a lexical heuristic, not a measure of truth or a promise of exhaustive research.
 
 ## Projection format
 

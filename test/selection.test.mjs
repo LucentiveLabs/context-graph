@@ -82,3 +82,10 @@ test('projection builder exports the full eligible concept pool with conservativ
   assert.ok(!JSON.stringify(payload).includes('item:sample'));
   assert.throws(() => renderContextMd({ ...payload, items: [{ ...ideas[0], text: 'x'.repeat(1024 * 1024) }] }), /exceeds 1 MiB/);
 });
+
+
+test('a product name alone does not make an unrelated idea relevant', () => {
+  const p = projection(); p.items.push(idea(12, 'The sample uses a garden metaphor for seasonal growth.'));
+  const b = teamBundle([p], { ...request, task: 'Explain sample astronomy' });
+  assert.equal(b.report.ideas.status, 'no-relevant-ideas');
+});

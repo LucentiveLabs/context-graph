@@ -21,7 +21,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 const root = 'node_modules/@lucentive-labs/context-graph/examples/minimal';
 const bin = 'node_modules/@lucentive-labs/context-graph/bin/context-graph.mjs';
-const request = { task: 'Explain the sample product', products: ['sample'], classes: ['library'], budget: 4096 };
+const request = { task: 'Explain sample project decisions', products: ['sample'], classes: ['library'], budget: 4096 };
 const api = contextFromWorkspace(loadWorkspace(root), request);
 assert.equal(api.report.ideas.status, 'selected');
 assert.equal(api.overBudget, false);

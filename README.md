@@ -27,7 +27,7 @@ git clone https://github.com/LucentiveLabs/context-graph.git
 cd context-graph
 npm ci --ignore-scripts
 node bin/context-graph.mjs status --root examples/minimal
-node bin/context-graph.mjs context --root examples/minimal --task 'Explain the sample product' --product sample
+node bin/context-graph.mjs context --root examples/minimal --task 'Explain sample project decisions' --product sample
 npm test
 ```
 

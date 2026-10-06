@@ -17,11 +17,11 @@ function fixture(t, payload = projection()) {
 
 test("CLI and library preserve binding constraints beyond the budget and report omissions", (t) => {
   const root = fixture(t); const workspace = loadWorkspace(root);
-  const result = contextFromWorkspace(workspace, { task: "Explain the sample product", products: ["sample"], budget: 1 });
+  const result = contextFromWorkspace(workspace, { task: "Explain sample project decisions", products: ["sample"], budget: 1 });
   assert.equal(result.overBudget, true); assert.equal(result.binding.length, 2);
   assert.match(result.text, /project decisions/); assert.match(result.text, /old record is deprecated/);
   assert.deepEqual(result.report.truncated, ["ctx:44444444"]); assert.equal(result.report.inaccessible.length, 1);
-  const cli = spawnSync(process.execPath, ["bin/context-graph.mjs", "context", "--root", root, "--task", "Explain the sample product", "--product", "sample", "--budget", "1", "--json"], { encoding: "utf8" });
+  const cli = spawnSync(process.execPath, ["bin/context-graph.mjs", "context", "--root", root, "--task", "Explain sample project decisions", "--product", "sample", "--budget", "1", "--json"], { encoding: "utf8" });
   assert.equal(cli.status, 0, cli.stderr); assert.deepEqual(JSON.parse(cli.stdout), result);
 });
 

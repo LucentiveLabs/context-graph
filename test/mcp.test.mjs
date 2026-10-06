@@ -17,7 +17,7 @@ test("the actual stdio server returns CLI-equivalent context, reloads changes an
   await client.connect(transport);
   const list = await client.listTools(); assert.deepEqual(list.tools.map((tool) => tool.name).sort(), ["check", "context", "status"]);
   assert.ok(list.tools.every((tool) => tool.annotations.readOnlyHint && !tool.annotations.openWorldHint));
-  const request = { task: "Explain the sample product", products: ["sample"], budget: 1 };
+  const request = { task: "Explain sample project decisions", products: ["sample"], budget: 1 };
   const first = await client.callTool({ name: "context", arguments: request }); assert.ok(!first.isError);
   assert.deepEqual(JSON.parse(first.content[0].text), contextFromWorkspace(loadWorkspace(root), request));
   payload.items[0].text = "Updated sample definition."; writeFileSync(join(root, "CONTEXT.md"), markdown(payload));

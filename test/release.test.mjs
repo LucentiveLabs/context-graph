@@ -3,8 +3,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve, isAbsolute } from "node:path";
 import { assertVersionAvailable, assertPublished, readReleaseArtifact } from "../scripts/release.mjs";
 import { parseNpmPackResult } from "../scripts/npm-pack-result.mjs";
 test("pack metadata supports legacy arrays and npm 12 maps and refuses ambiguous output", () => {
@@ -14,13 +13,17 @@ test("pack metadata supports legacy arrays and npm 12 maps and refuses ambiguous
   for (const output of [null, {}, [], [pack, pack], { a: pack, b: pack }]) assert.throws(() => parseNpmPackResult(JSON.stringify(output), expected), /exactly one/);
   for (const change of [{ name: "other" }, { version: "0.2.0" }, { files: null }, { filename: null }, { integrity: null }]) assert.throws(() => parseNpmPackResult(JSON.stringify([{ ...pack, ...change }]), expected), /metadata differs/);
 });
-test("publisher accepts npm's actual packed filename and refuses escaped or changed artifacts", (t) => {
-  const directory = mkdtempSync(join(tmpdir(), "context-graph-pack-"));
+test("publisher gives npm an explicit local path and refuses escaped or changed artifacts", (t) => {
+  // Match the hosted release's bare relative directory, which npm 12 otherwise
+  // interprets as a GitHub package spec rather than a local tarball.
+  const directory = mkdtempSync("context-graph-pack-");
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const packed = parseNpmPackResult(execFileSync("npm", ["pack", "--ignore-scripts", "--json", "--pack-destination", directory], { encoding: "utf8" }), JSON.parse(readFileSync("package.json", "utf8")));
   const bytes = readFileSync(join(directory, packed.filename));
   const receipt = { file: packed.filename, sha256: createHash("sha256").update(bytes).digest("hex"), integrity: packed.integrity };
-  assert.equal(readReleaseArtifact(receipt, directory), join(directory, packed.filename));
+  const artifact = readReleaseArtifact(receipt, directory);
+  assert.equal(artifact, resolve(directory, packed.filename));
+  assert.equal(isAbsolute(artifact), true);
   assert.throws(() => readReleaseArtifact({ ...receipt, sha256: "0".repeat(64) }, directory), /digest differs/);
   for (const file of ["../escape.tgz", "/escape.tgz", "..\\escape.tgz", "-option.tgz", "archive.zip"]) assert.throws(() => readReleaseArtifact({ ...receipt, file }, directory), /Invalid artifact name/);
 });

@@ -1,6 +1,6 @@
 # Getting started
 
-Complete the source installation in the [README](../README.md). Run the examples below from the repository root with Node.js 22.13 or newer.
+Complete the source installation in the [README](../README.md). Run the examples below from the repository root with Node.js 22.14 or newer.
 
 ## Inspect a workspace and ask for context
 

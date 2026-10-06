@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 (experimental)
+
+- Library requests now include relevant ideas; every class retains applicable acceptance.
+- Deterministic task ranking, idea space reservation, oversized-item skipping and explicit idea omission diagnostics.
+- Full eligible concept export with a 1 MiB refusal, opaque evidence metadata and semantic exclusions.
+- Selection/v2 and receipt/v2 make the behavior change explicit. Regenerate receipts after reader upgrades; keep v1 history at its original pin.
+- Canonical core file manifest and source/vendoring integration guide. Node minimum aligns with tested 22.14+.
+- Registry publication remains a separately verified release outcome.
+
+
 ## Unreleased
 
 - Add a source-install quickstart, plain-language architecture and diagrams, projection/API reference, writing and evaluation guide, contributor instructions, and security reporting guidance.

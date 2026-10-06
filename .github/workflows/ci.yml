@@ -23,5 +23,7 @@ jobs:
         run: npm install --global --ignore-scripts npm@12.0.1
       - run: npm ci --ignore-scripts
       - run: npm test
+      - run: npm run check:core
       - run: npm run check:pack
+      - run: npm run check:install
       - run: npm audit --omit=dev --audit-level=high

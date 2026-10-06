@@ -122,7 +122,20 @@ export function buildPayload(view, server, key, { date }) {
     const rel = Object.entries(product.relations || {}).flatMap(([k, list]) => list.map((x) => ({ k, to: x.to })));
     for (const { k, to } of rel) add(`relation:${k}:${to}`, "map", `${product.label} ${RELATION_TEXT[k] || k} ${server.products.get(to)?.label || to}.`, [`product:${product.id}`]);
     for (const c of server.claimsFor(product.id)) add(c.id.replace(/^claim:/, ""), "claims", c.label, [c.id], { facet: c.facet, source: `${String(c.artifact).replace(`artifact:${TEAM_REPO}/`, "")} ${c.selector}` });
-    for (const { edge, concept } of server.ideasFor(product.id)) add(concept.id.replace(/^concept:/, ""), "ideas", `${concept.label}: ${concept.definition}`, [concept.id, edge.id], { relation: edge.predicate === "documented_influence" ? "documented influence" : "candidate application" });
+    for (const { edge, concept } of server.ideasFor(product.id)) {
+      // Source text remains in the owning adapter. Only opaque, eligible example
+      // handles and conservative evidence kinds cross the projection boundary.
+      const refs = (concept.examples || []).filter((id) => server.refEligible(id));
+      const evidence = refs.map((id) => {
+        const r = server.recAny(id);
+        const kind = r?.kind === "Excerpt" && r.verified_against_sha256 ? "primary-excerpt" : "unknown";
+        return { handle: ctxHandle(view.salt, scope, `evidence:${id}`), kind };
+      });
+      add(concept.id.replace(/^concept:/, ""), "ideas", `${concept.label}: ${concept.definition}`, [concept.id, edge.id, ...refs], {
+        relation: edge.predicate === "documented_influence" ? "documented influence" : "candidate application",
+        confidence: edge.confidence, exclusions: concept.excludes || [], evidence,
+      });
+    }
   }
   const order = ["map", ...BINDING_SECTIONS, "checks", "claims", "open", "ideas"];
   items.sort((x, y) => order.indexOf(x.section) - order.indexOf(y.section));
@@ -200,7 +213,9 @@ export function renderContextMd(payload) {
   }
   if (payload.inaccessible.length) { L.push("## Not served here", "", ...payload.inaccessible.map((x) => `- ${x.count} ${x.reason}.`), ""); }
   L.push("## Machine-readable rules", "", `\`\`\`json ${MACHINE_FENCE}`, JSON.stringify(payload, null, 2), "```", "");
-  return L.join("\n");
+  const markdown = L.join("\n");
+  if (Buffer.byteLength(markdown, "utf8") > 1024 * 1024) throw new Error("Projection exceeds 1 MiB; split the approved product scope before export. No candidates were silently removed.");
+  return markdown;
 }
 
 /** Leak-scans a payload (string by string) and its rendering; [] when both pass on a team surface. */

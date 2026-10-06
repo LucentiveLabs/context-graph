@@ -12,7 +12,9 @@ Run these commands from a source checkout, not an installed runtime package.
 npm ci --ignore-scripts
 git config core.hooksPath scripts/githooks
 npm test
+npm run check:core
 npm run check:pack
+npm run check:install
 npm audit --omit=dev --audit-level=high
 bash scripts/security-scan.sh --mode full
 ```
@@ -32,3 +34,5 @@ A failed run may be retried through workflow dispatch with `confirm: recover`. A
 Include every intended runtime/documentation file in `package.json` and the pack allowlist. Inspect the actual tarball. Keep action references pinned and review dependency updates through the normal PR process. Hosted security scanning runs on reviewed main and weekly; PR-controlled CI alone does not constitute security approval.
 
 Experimental APIs may change before 1.0. Use the changelog to call out incompatible changes, and provide migration steps when changing a projection or graph contract. Maintain downstream compatibility fixtures rather than assuming a copied engine remains equivalent.
+
+Core changes update `core-manifest.json` with `npm run update:core`. Review the changed hashes and run `npm run check:core`. Consumers pin the upstream commit separately; a manifest is an integrity inventory, not approval.

@@ -174,10 +174,11 @@ export function makeServer(view) {
     }
     return out.slice(0, limit);
   }
-  function ideasFor(product, limit = serving.ideas_per_product || 6) {
+  function ideasFor(product, limit = Infinity) {
     const pid = `product:${product}`;
-    const edges = graph.assertions.map((x) => x.record).filter((e) => e.to === pid && ["candidate_application", "documented_influence"].includes(e.predicate) && rec(e.from)?.kind === "Concept" && e.state !== "retired");
-    return edges.sort((a, b) => (b.predicate === "documented_influence") - (a.predicate === "documented_influence") || b.confidence - a.confidence || a.from.localeCompare(b.from)).slice(0, limit).map((e) => ({ edge: e, concept: rec(e.from) }));
+    const edges = graph.assertions.map((x) => x.record).filter((e) => e.to === pid && ["candidate_application", "documented_influence"].includes(e.predicate) && rec(e.from)?.kind === "Concept" && isActive(rec(e.from)) && e.state !== "retired");
+    const seen = new Set();
+    return edges.sort((a, b) => (b.predicate === "documented_influence") - (a.predicate === "documented_influence") || b.confidence - a.confidence || a.from.localeCompare(b.from)).filter((e) => { if (seen.has(e.from)) return false; seen.add(e.from); return true; }).slice(0, limit).map((e) => ({ edge: e, concept: rec(e.from) }));
   }
   const canonRules = canon.rules || [];
   const ruleBasis = (r) => r.basis.map((b) => b.split("#")[0]);
@@ -269,7 +270,7 @@ export function makeServer(view) {
     if (!req.classes.includes("story") && req.classes.includes("governance")) b.report.inaccessible.push("governance decisions are served in the private profile only");
     const hits = view.scanner().scan(b.text, { surface: "team" });
     if (hits.length) return { ...base, applies: true, ok: false, error: `leak scanner refused the team bundle: ${hits.map((h) => h.id).join(", ")}` };
-    return { ...base, applies: true, ok: true, bundle_sha256: b.sha256, bytes: b.bytes, budget, text: b.text, binding: b.binding.map((it) => it.handle), included: b.items.map((it) => it.handle), report: b.report, projections: payloads.map((p) => ({ product: p.scope === "parent" ? "parent" : p.product, handle: p.projection, payload_sha256: view.projections.get(p.scope === "parent" ? "parent" : p.product).payload_sha256 })) };
+    return { ...base, applies: true, ok: true, bundle_sha256: b.sha256, bytes: b.bytes, budget, overBudget: b.bytes > budget, requiredBytes: b.requiredBytes, selectionAlgorithm: b.selectionAlgorithm, text: b.text, binding: b.binding.map((it) => it.handle), included: b.items.map((it) => it.handle), report: b.report, projections: payloads.map((p) => ({ product: p.scope === "parent" ? "parent" : p.product, handle: p.projection, payload_sha256: view.projections.get(p.scope === "parent" ? "parent" : p.product).payload_sha256 })) };
   }
 
   function captureLine(a) {

@@ -1,6 +1,6 @@
 # Interface reference
 
-The projection interface is the smallest integration surface. All interfaces are experimental in 0.1; pin the version and test upgrades against your fixtures.
+The projection interface is the smallest integration surface. All interfaces are experimental in 0.2; pin the version and test upgrades against your fixtures.
 
 ## CLI
 
@@ -17,12 +17,14 @@ Use `node bin/context-graph.mjs` in a source checkout. The installed binary is `
 
 Classes: `story`, `governance`, `library`. Default: `story`.
 
-| Requested classes | Selected content in 0.1 |
+| Requested classes | Selected content in 0.2 |
 |---|---|
-| Includes `story` | Binding terms, definitions, decisions and acceptance, plus optional sections within the budget |
-| `governance`, `library`, or both, without `story` | Binding terms, definitions and decisions only; acceptance and optional items are excluded without omission notices |
+| Any supported class | Applicable binding terms, definitions, decisions and acceptance, without truncation |
+| `library` | Also relevant ideas |
+| `governance` | Also applicable checks |
+| `story` | Also meaning, checks, claims, open decisions and relevant ideas |
 
-Adding `library` to `story` does not change selected items; it labels the requested class in the bundle header. `governance` and `library` select the same items. Use `story` whenever acceptance requirements or ideas matter. The projection client rejects routine classification rather than guessing which domains govern arbitrary code tasks.
+Classes combine. They do not broaden a product or page requirement's scope. Story delivery still requires an explicit `story` receipt. The projection client rejects routine classification; routine code needs the owning policy adapter.
 
 Task length: 1-16,000 characters. Budget: an integer from 1-1,048,576 UTF-8 bytes, default 12,288. Check input: at most 10,000 lines, each with a string path, positive integer line number, and text up to 16,000 characters. Registered projection files must be regular files no larger than 1 MiB.
 
@@ -40,7 +42,23 @@ From `@lucentive-labs/context-graph/workspace`:
 | `workspaceStatus(workspace)` | Returns `{ok, revision, projections}`. |
 | `WorkspaceError` | Error with a stable `code` and a human-readable message. |
 
-Bundle fields include `profile`, `revision`, `text`, `sha256`, `items`, `binding`, `bytes`, `budget`, `overBudget`, and `report`. `sha256` hashes returned text; `revision` hashes the loaded file inventory. Neither is a signature or an approval. Report entries distinguish optional handles omitted by budget, missing context, and inaccessible notices with counts and reasons. The workspace client leaves `report.missing` empty: missing registered files fail loading instead. Class exclusions described above are not reported as omissions.
+Bundle fields include `profile`, `revision`, `text`, `sha256`, `items`, `binding`, `bytes`, `budget`, `overBudget`, `requiredBytes`, `selectionAlgorithm`, and `report`. `sha256` hashes returned text; `revision` hashes the loaded file inventory. Neither is a signature or an approval. Report entries distinguish optional handles omitted by budget, missing context, and inaccessible notices with counts and reasons. The workspace client leaves `report.missing` empty: missing registered files fail loading instead. `report.excludedByClass` counts class exclusions separately from budget omissions.
+
+### Space and omission reports
+
+`ok: true` means the request ran, not that a writer has enough evidence. All binding text survives. If the minimum bundle exceeds the budget, `overBudget` is true, `requiredBytes` gives the minimum diagnostic bundle size, a visible warning appears and optional material is excluded. Otherwise, relevant ideas receive 30% of remaining optional space, other sections follow, and ideas can borrow unused space. Oversized items are skipped so later smaller ones can fit.
+
+`report.truncated` contains every budget-omitted candidate handle. The text shows its count to avoid spending the prompt on a long handle list. `report.ideas` includes `candidates`, `relevant`, `selected` and `status`:
+
+| Status | Meaning |
+|---|---|
+| `selected` | At least one relevant idea is present; check `truncated` for partial omission |
+| `no-relevant-ideas` | No cleared projected idea overlaps the task |
+| `omitted-by-budget` | Relevant ideas exist, but none fit |
+| `bindings-over-budget` | Mandatory context and its report exceed the budget |
+| `not-requested` | Classes exclude ideas |
+
+The selector uses task-word overlap, then evidence quality, confidence and stable handles. Zero-overlap ideas are excluded from the candidate selection, never presented as relevant. This is a lexical heuristic, not a measure of truth or a promise of exhaustive research.
 
 ## Projection format
 
@@ -69,4 +87,12 @@ The package root exports namespaces: `canonical`, `fields`, `index_db`, `intent`
 
 `serve.makeServer(view)` needs an application-built view with graph, serving policy, cleared phrasing, capture resolution, and scanning adapters. It is not a drop-in replacement for `loadWorkspace`. The intent API requires `canonicalIntentJson`, `createIntentReceiptV2`, `assembleIntentReceipt`, `validateIntentCardV2`, and `validateIntentCardLineage` from the consuming contract. Source authentication and immutable task lineage remain that contract's responsibility.
 
-Low-level signatures are documented alongside their implementations. The source and synthetic tests are the compatibility reference during 0.1. The projection API is the recommended starting point for a new consumer.
+Low-level signatures are documented alongside their implementations. The source and synthetic tests are the compatibility reference during 0.2. The projection API is the recommended starting point for a new consumer.
+
+## Evidence and upgrades
+
+Ideas may include `evidence: [{handle, kind, summary?}]`, `exclusions: string[]`, `confidence: 0..1` and `relation`. Evidence handles are opaque; summaries must already be cleared by the application. Kinds are `primary-excerpt`, `source-paraphrase`, `digest`, `unlocated-synthesis` or `unknown`. Missing evidence remains unknown. A candidate application is a possible writing angle; documented influence is a separately supported historical relationship. Neither establishes product efficacy.
+
+Version 0.2 uses `selectionAlgorithm: context-selection/v2` and `context-receipt/v2`. Regenerate delivery receipts after upgrading every reader. Older v1 receipts remain historical artifacts and may be reverified with their exact old pin; current delivery rejects them. Do not change their schema labels to make them pass.
+
+`core-manifest.json` names the canonical generic modules, version, algorithm and SHA-256 of each file. A source-pinned or vendored consumer must also retain the exact upstream commit and validate these bytes. Capture, authentication, source clearance, filesystem layout and consuming intent contracts belong in adapters. See [integration](integration.md).

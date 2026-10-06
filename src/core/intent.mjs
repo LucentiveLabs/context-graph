@@ -13,7 +13,7 @@
 // only when a scope that governs its domain gives it scoped constraints: the private form, and no team form.
 import { ctxHandle } from "./project.mjs";
 import { stringsOf } from "./leak.mjs";
-import { RECEIPT_SCHEMA, receiptProblems, sha256, teamBundle, uniquePayloads } from "./team.mjs";
+import { RECEIPT_SCHEMA, SELECTION_ALGORITHM, receiptProblems, sha256, teamBundle, uniquePayloads } from "./team.mjs";
 
 export const INTENT_STORE = "origin-intent/v1";
 export const CARD_SCHEMA = "intent-card.v2";
@@ -187,7 +187,7 @@ export function mintIntent(view, input, { contract, parent = null, root = null, 
       withheld.push({ ref: c.ref, form: "team", reason });
     }
     const projections = team.projections.flatMap((p) => (view.exports.get(p.product) || []).map((rel) => ({ path: rel, handle: p.handle, payload_sha256: p.payload_sha256 })));
-    receipt = { schema: RECEIPT_SCHEMA, task_id: input.taskId, profile: "team", task: request.task, classes: team.classes, products: team.products, budget: team.budget, missing: team.report.missing, bundle_sha256: team.bundle_sha256, projections, acceptance: team.binding.filter((h) => team.text.includes(h)), ...(receiptDate ? { created_at: receiptDate } : {}), tool: "sources-graph intent" };
+    receipt = { schema: RECEIPT_SCHEMA, selectionAlgorithm: SELECTION_ALGORITHM, task_id: input.taskId, profile: "team", task: request.task, classes: team.classes, products: team.products, budget: team.budget, missing: team.report.missing, bundle_sha256: team.bundle_sha256, projections, acceptance: team.binding.filter((h) => team.text.includes(h)), ...(receiptDate ? { created_at: receiptDate } : {}), tool: "sources-graph intent" };
     const p = parent?.team;
     teamCard = {
       schema: CARD_SCHEMA, profile: "team", taskId: input.taskId, rootIntentId: intentHandle(view.salt, rootId), parentIntentId: parent ? intentHandle(view.salt, intentNodeId(parent.task_id)) : null,

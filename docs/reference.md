@@ -15,7 +15,14 @@ Use `node bin/context-graph.mjs` in a source checkout. The installed binary is `
 | `check` | JSON on stdin: `{lines:[{path,line,text}],products?:[]}` | JSON findings; findings do not make the command exit nonzero |
 | `mcp` | Workspace root and optional parent path | Stdio protocol; tools mirror the projection API |
 
-Classes: `story`, `governance`, `library`. Default: `story`. The current optional-content selector requires `story`; use `story` plus `library` for writing research. The projection client rejects routine classification rather than guessing which domains govern arbitrary code tasks.
+Classes: `story`, `governance`, `library`. Default: `story`.
+
+| Requested classes | Selected content in 0.1 |
+|---|---|
+| Includes `story` | Binding terms, definitions, decisions and acceptance, plus optional sections within the budget |
+| `governance`, `library`, or both, without `story` | Binding terms, definitions and decisions only; acceptance and optional items are excluded without omission notices |
+
+Adding `library` to `story` does not change selected items; it labels the requested class in the bundle header. `governance` and `library` select the same items. Use `story` whenever acceptance requirements or ideas matter. The projection client rejects routine classification rather than guessing which domains govern arbitrary code tasks.
 
 Task length: 1-16,000 characters. Budget: an integer from 1-1,048,576 UTF-8 bytes, default 12,288. Check input: at most 10,000 lines, each with a string path, positive integer line number, and text up to 16,000 characters. Registered projection files must be regular files no larger than 1 MiB.
 
@@ -33,7 +40,7 @@ From `@lucentive-labs/context-graph/workspace`:
 | `workspaceStatus(workspace)` | Returns `{ok, revision, projections}`. |
 | `WorkspaceError` | Error with a stable `code` and a human-readable message. |
 
-Bundle fields include `profile`, `revision`, `text`, `sha256`, `items`, `binding`, `bytes`, `budget`, `overBudget`, and `report`. `sha256` hashes returned text; `revision` hashes the loaded file inventory. Neither is a signature or an approval. Report entries distinguish omitted optional handles, missing context, and count-only inaccessible notices.
+Bundle fields include `profile`, `revision`, `text`, `sha256`, `items`, `binding`, `bytes`, `budget`, `overBudget`, and `report`. `sha256` hashes returned text; `revision` hashes the loaded file inventory. Neither is a signature or an approval. Report entries distinguish optional handles omitted by budget, missing context, and inaccessible notices with counts and reasons. The workspace client leaves `report.missing` empty: missing registered files fail loading instead. Class exclusions described above are not reported as omissions.
 
 ## Projection format
 
@@ -58,7 +65,7 @@ Binding sections are `terms`, `definitions`, `decisions`, and `acceptance`; thei
 
 ## Lower-level graph core
 
-The package root exports namespaces: `canonical`, `fields`, `index_db`, `intent`, `leak`, `predicates`, `project`, `propagate`, `query`, `records`, `schemas`, `serve`, `team`, and `validate`. Import a module directly through `@lucentive-labs/context-graph/core/<name>` or use the namespace exports.
+The package root exports namespaces: `canonical`, `fields`, `index_db`, `intent`, `leak`, `predicates`, `project`, `propagate`, `query`, `records`, `schemas`, `serve`, `team`, and `validate`. Import a module directly through `@lucentive-labs/context-graph/core/<name>` or use the namespace exports. The `index_db` namespace uses the filename-based subpath `@lucentive-labs/context-graph/core/index-db`.
 
 `serve.makeServer(view)` needs an application-built view with graph, serving policy, cleared phrasing, capture resolution, and scanning adapters. It is not a drop-in replacement for `loadWorkspace`. The intent API requires `canonicalIntentJson`, `createIntentReceiptV2`, `assembleIntentReceipt`, `validateIntentCardV2`, and `validateIntentCardLineage` from the consuming contract. Source authentication and immutable task lineage remain that contract's responsibility.
 

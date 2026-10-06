@@ -48,11 +48,11 @@ Once a registry release has been verified, the intended installation is `npm ins
 
 ## What it guarantees, and what it does not
 
-The projection client rejects missing, malformed, inconsistent, escaped, and expired registered projections. Library, CLI, and MCP use the same selection and check functions. Binding requirements survive budget pressure; optional omissions are listed. Paths passed to `check` label supplied text and are not opened as files.
+The projection client rejects missing, malformed, inconsistent, escaped, and expired registered projections. Library, CLI, and MCP use the same selection and check functions. Selected binding requirements survive budget pressure; optional budget omissions are listed. Paths passed to `check` label supplied text and are not opened as files.
 
 A content hash identifies bytes. It does not prove that the source is true, that someone approved it, or that it can be published. A team projection is readable by every user and process with access to its files. Clear material before putting it there.
 
-Selection is deterministic and based on product, section priority, and word overlap. This is not semantic search over an entire library. In 0.1, include the `story` class to receive optional ideas; `library` alone returns binding context only. Read [current limits and evaluation](docs/writing.md#current-selection-limits) before relying on the output.
+Selection is deterministic and based on product, section priority, and word overlap. This is not semantic search over an entire library. In 0.1, include `story` to receive acceptance requirements and optional ideas. Without `story`, both `library` and `governance` return only binding terms, definitions, and decisions; acceptance requirements are omitted without a report entry. Read [current limits and evaluation](docs/writing.md#current-selection-limits) before relying on the output.
 
 ## Development
 

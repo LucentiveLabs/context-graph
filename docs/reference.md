@@ -79,7 +79,7 @@ Use the complete [synthetic projection](../examples/minimal/CONTEXT.md) as a run
 
 The parent registers itself and every product projection by `{path, handle, product}`. Refer to `payloadProblems` in [the team core](../src/core/team.mjs) for the exact runtime validation. The JSON Schemas in `schemas/` describe graph records; they are not a replacement schema for the projection payload.
 
-Binding sections are `terms`, `definitions`, `decisions`, and `acceptance`; their items must set `binding: true`. Other sections (`map`, `checks`, `claims`, `open`, `ideas`) must set it to false. Terms declare deprecated patterns and preferred wording. Checks declare patterns. Acceptance items specify a requirement and where it applies. A pattern check is narrower than semantic compliance or complete page coverage.
+Binding sections are `terms`, `definitions`, `decisions`, and `acceptance`; their items must set `binding: true`. Other sections (`map`, `checks`, `claims`, `open`, `ideas`) must set it to false. Terms declare deprecated patterns and preferred wording. Checks declare patterns. Acceptance items specify a requirement and where it applies. Equal wording does not combine requirements with different scopes or evidence. For product acceptance, omit `page` to check the product page union, use `page: "landing"` for configured landing entries, or name an exact repository-relative page entry. An unresolved named page fails coverage when the product is touched. A pattern check is narrower than semantic compliance or complete page coverage.
 
 ## Lower-level graph core
 

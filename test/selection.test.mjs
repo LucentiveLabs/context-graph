@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { projection } from './fixture.mjs';
-import { teamBundle, receiptProblems, RECEIPT_SCHEMA, SELECTION_ALGORITHM } from '../src/core/team.mjs';
+import { projection, markdown } from './fixture.mjs';
+import { teamBundle, coverage, evaluateGate, receiptProblems, RECEIPT_SCHEMA, SELECTION_ALGORITHM } from '../src/core/team.mjs';
 
 const idea = (n, text) => ({ handle: `ctx:${n.toString(16).padStart(8, '0')}`, section: 'ideas', binding: false, text });
 const request = { task: 'Explain patient reflection and response', products: ['sample'], classes: ['library'] };
@@ -102,13 +102,36 @@ test('equal prose retains distinct exclusions, evidence and acceptance scopes', 
   const p = projection();
   const text = 'Patient reflection.';
   p.items.push({ ...idea(20, text), relation: 'documented influence', exclusions: ['No therapeutic claim'], evidence: [{ handle: 'ctx:88888888', kind: 'digest' }] }, { ...idea(21, text), relation: 'candidate application', exclusions: [], evidence: [] });
-  for (const [n, page] of [[22, 'landing'], [23, 'guide']]) p.items.push({ ...idea(n, 'Explain the first step.'), section: 'acceptance', binding: true, applies_to: { scope: 'product', product: 'sample', page } });
+  for (const [n, page] of [[22, 'landing'], [23, 'docs/guide.html']]) p.items.push({ ...idea(n, 'Explain the first step.'), section: 'acceptance', binding: true, applies_to: { scope: 'product', product: 'sample', page } });
   const b = teamBundle([p], request);
   assert.equal(b.items.filter(x => x.text === text).length, 2);
   assert.equal(b.binding.filter(x => x.section === 'acceptance').length, 2);
   assert.match(b.text, /No therapeutic claim/);
   assert.match(b.text, /relationship stated per item/);
   assert.doesNotMatch(b.text, /not documented influence/);
+});
+
+test('delivery coverage preserves equal-prose obligations with distinct scopes and requirements', () => {
+  const parent = projection();
+  const rule = { section: 'acceptance', binding: true, text: 'Explain the first step.', requirement: 'phrases', phrases: ['first step'], applies_to: { scope: 'product', product: 'sample', page: 'landing' } };
+  parent.items.push({ ...rule, handle: 'ctx:00000022' });
+  parent.gate_config.projections.push({ path: 'product.md', handle: 'ctx:aaaaaaaa', product: 'sample' });
+  const own = { ...projection(), scope: 'product', projection: 'ctx:aaaaaaaa', family: true,
+    paths: { story: ['docs/**'], pages: ['docs/*.html'], entries: ['docs/*.html'], landing: ['docs/index.html'], read: [], specific: false },
+    items: [{ ...rule, handle: 'ctx:00000023', applies_to: { scope: 'product', product: 'sample', page: 'docs/guide.html' } },
+      { ...rule, handle: 'ctx:00000024', phrases: ['second step'], applies_to: { scope: 'product', product: 'sample', page: 'docs/guide.html' } }] };
+  delete own.gate_config;
+  const files = new Map([['docs/index.html', '<p>The first step appears here.</p>'], ['docs/guide.html', '<p>This guide omits both required instructions.</p>']]);
+  const changed = ['docs/guide.html'];
+  const rows = coverage([parent, own], { products: ['sample'], files, changed });
+  assert.deepEqual(rows.map(x => [x.rule, x.page, x.ok]), [['ctx:00000023', 'docs/guide.html', false], ['ctx:00000024', 'docs/guide.html', false]]);
+  const gate = evaluateGate({ contextFiles: new Map([['CONTEXT.md', markdown(parent)], ['product.md', markdown(own)]]), parentPath: 'CONTEXT.md', changed, files });
+  assert.equal(gate.ok, false);
+  assert.equal(gate.blocking.filter(x => x.includes('coverage sample docs/guide.html')).length, 2);
+  files.set('docs/guide.html', '<p>The first step and the second step appear here.</p>');
+  assert.ok(coverage([parent, own], { products: ['sample'], files, changed }).every(x => x.ok));
+  own.items[0].applies_to.page = 'unresolved-guide';
+  assert.ok(coverage([parent, own], { products: ['sample'], files, changed }).some(x => !x.ok && x.detail.includes('not a known product page')));
 });
 
 test('receipt accepts the full documented context budget range', () => {

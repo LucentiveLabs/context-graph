@@ -425,12 +425,17 @@ export function coverage(payloads, { products = [], files = new Map(), neverPage
       const lower = text.toLowerCase(); const miss = (it.phrases || []).filter((ph) => !lower.includes(ph.toLowerCase())); return miss.length ? [false, `missing ${miss.join(", ")}`] : [true, "all phrases present"];
     };
     const textOf = (pgs) => [...new Set(pgs.flatMap((pg) => [...pg.closure]))].filter((f) => !matches(neverPages, f)).map(vis).join("\n");
-    const seen = new Set();
-    for (const it of items) {
-      if (seen.has(it.text)) continue; seen.add(it.text);
+    for (const it of dedupe(items)) {
       const base = { product, rule: it.handle, text: it.text };
       if (it.applies_to.scope === "all-pages") for (const pg of touched) { const [ok, detail] = judge(it, textOf([pg])); results.push({ ...base, page: pg.entry, ok, detail }); }
       else if (it.applies_to.page === "landing") for (const pg of touched.filter((x) => x.landing)) { const [ok, detail] = judge(it, textOf([pg])); results.push({ ...base, page: pg.entry, ok, detail }); }
+      else if (it.applies_to.page) {
+        // A named page is an exact repository-relative entry path. An unknown
+        // selector must not silently widen the obligation to the page union.
+        const target = pages.find((pg) => pg.entry === it.applies_to.page);
+        if (!target && touched.length) results.push({ ...base, page: it.applies_to.page, ok: false, detail: "acceptance page is not a known product page entry" });
+        else if (target && touched.includes(target)) { const [ok, detail] = judge(it, textOf([target])); results.push({ ...base, page: target.entry, ok, detail }); }
+      }
       else if (touched.length) { const [ok, detail] = judge(it, textOf(pages)); results.push({ ...base, page: "(all pages of the product)", ok, detail }); }
     }
     if (changedSet && !pages.length && [...changedSet].some((rel) => productsForPath(payloads, rel).includes(product) && isPagePath(payloads, rel))) results.push({ product, rule: null, text: "Coverage needs the product's page entries.", ok: false, detail: "page files changed, but no page entry of this product was found" });

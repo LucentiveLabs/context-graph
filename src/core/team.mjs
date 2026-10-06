@@ -21,7 +21,7 @@ export const SECTION_TITLES = {
   checks: "Check rules",
   claims: "Claim constraints (what our own docs state)",
   open: "Open decisions",
-  ideas: "Library ideas in our words (candidate applications, not documented influence; sources unnamed)",
+  ideas: "Library ideas in our words (relationship stated per item; sources unnamed)",
 };
 const ORDER = ["terms", "definitions", "decisions", "acceptance", "map", "checks", "claims", "open", "ideas"];
 const SECTIONS = new Set(Object.keys(SECTION_TITLES));
@@ -244,7 +244,17 @@ export function pageClosure(entry, files) {
   return seen;
 }
 
-const dedupe = (items) => { const seen = new Set(); return items.filter((it) => { const k = `${it.section}\n${it.text}`; if (seen.has(k)) return false; seen.add(k); return true; }); };
+// Equal prose can carry different scope, exclusions or evidence. Only identical
+// semantic records can share one bullet; provenance-only fields do not change it.
+const stableValue = (v) => Array.isArray(v) ? v.map(stableValue) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, stableValue(v[k])])) : v;
+const dedupe = (items) => {
+  const seen = new Set();
+  return items.filter(({ handle, projection, parent, ...semantic }) => {
+    const key = JSON.stringify(stableValue(semantic));
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+};
 const line = (it) => {
   let detail = "";
   if (it.section === "acceptance") detail = ` (scope: ${it.applies_to.scope === "all-pages" ? "all pages" : `${it.applies_to.product}, ${it.applies_to.page || "product pages"}`})`;
@@ -454,7 +464,7 @@ export function receiptProblems(receipt, { contextFiles = new Map(), payloadsByP
   if (!/^[a-f0-9]{64}$/.test(String(receipt.bundle_sha256))) P.push("receipt needs bundle_sha256");
   if (!strArray(receipt.products) || !receipt.products.length) P.push("receipt needs the products it covers");
   if (!strArray(receipt.classes) || !receipt.classes.includes("story")) P.push("receipt is not a story bundle (classes lack story); story delivery requires an explicit story request");
-  if (!Number.isInteger(receipt.budget) || receipt.budget < 1024 || receipt.budget > 65536) P.push("receipt needs an integer budget between 1024 and 65536");
+  if (!Number.isInteger(receipt.budget) || receipt.budget < 1 || receipt.budget > 1048576) P.push("receipt needs an integer budget between 1 and 1048576");
   if (typeof receipt.task !== "string") P.push("receipt needs the task text its bundle was ranked by");
   if (!Array.isArray(receipt.projections) || !receipt.projections.length) P.push("receipt names no projections");
   if (P.length) return P;

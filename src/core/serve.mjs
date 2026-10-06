@@ -331,17 +331,26 @@ export function makeServer(view) {
     }
     const rows = extra.flatMap(([title, list]) => list.map(([id, row]) => ({ title, id, row })));
     const render = (n) => { let t = text; let last = null; for (const r of rows.slice(0, n)) { if (r.title !== last) { t += `\n## ${r.title}\n`; last = r.title; } t += `${r.row}\n`; } return t; };
-    const tail = (n) => Buffer.byteLength(`\n## Report\n- truncated: ${rows.slice(n).map((r) => r.id).join(", ")}\n- missing: ${missing.join("; ")}\n- inaccessible: interview anchors return id and sha256 only\n`, "utf8");
-    let kept = rows.length;
-    if (Buffer.byteLength(render(kept), "utf8") + tail(kept) > budget) { let lo = 0; let hi = rows.length; while (lo < hi) { const mid = Math.ceil((lo + hi) / 2); if (Buffer.byteLength(render(mid), "utf8") + tail(mid) <= budget) lo = mid; else hi = mid - 1; } kept = lo; }
-    text = render(kept);
-    const included = rows.slice(0, kept).map((r) => r.id); const truncated = rows.slice(kept).map((r) => r.id);
     const inaccessible = [];
     if (B.active.some((a) => a.capture?.class === "interview")) inaccessible.push("interview anchors return id and sha256 only");
-    text += `\n## Report\n- truncated: ${truncated.length ? `${truncated.length} item(s): ${truncated.join(", ")}` : "none"}\n- missing: ${missing.length ? missing.join("; ") : "none"}\n- inaccessible: ${inaccessible.length ? inaccessible.join("; ") : "none"}\n`;
+    // Keep the potentially unbounded omission inventory in the structured report.
+    // Measure the exact rendered report, including the binding-overflow warning.
+    const finish = (n, overflow = false) => `${render(n)}\n## Report\n${overflow ? "WARNING: bindings and the minimum report exceed the requested budget. Increase the budget before writing.\n" : ""}- truncated: ${rows.length - n ? `${rows.length - n} item(s); ids in report.truncated` : "none"}\n- missing: ${missing.length ? missing.join("; ") : "none"}\n- inaccessible: ${inaccessible.length ? inaccessible.join("; ") : "none"}\n`;
+    const minimumBytes = Buffer.byteLength(finish(0), "utf8");
+    const overBudget = minimumBytes > budget;
+    let kept = 0;
+    if (!overBudget) {
+      for (let n = 1; n <= rows.length; n += 1) {
+        if (Buffer.byteLength(finish(n), "utf8") > budget) break;
+        kept = n;
+      }
+    }
+    text = finish(kept, overBudget);
+    const included = rows.slice(0, kept).map((r) => r.id); const truncated = rows.slice(kept).map((r) => r.id);
+    const bytes = Buffer.byteLength(text, "utf8");
     const hits = view.scanner().scan(text, { surface: "private" });
     if (hits.length) return { ...base, applies: true, ok: false, ...(scoped ? { scoped: true } : {}), error: `leak scanner refused the private bundle: ${hits.map((h) => h.id).join(", ")}` };
-    return { ...base, applies: true, ok: true, ...(scoped ? { scoped: true } : {}), bundle_sha256: sha256(text), bytes: Buffer.byteLength(text, "utf8"), budget, text, binding: [...bindingIds, ...B.acceptance.map((x) => `${x.anchor}#${x.entry.id}`)], included, report: { truncated, missing, inaccessible }, superseded: B.superseded.map((s) => s.id) };
+    return { ...base, applies: true, ok: true, ...(scoped ? { scoped: true } : {}), bundle_sha256: sha256(text), bytes, budget, overBudget, requiredBytes: overBudget ? bytes : minimumBytes, text, binding: [...bindingIds, ...B.acceptance.map((x) => `${x.anchor}#${x.entry.id}`)], included, report: { truncated, missing, inaccessible }, superseded: B.superseded.map((s) => s.id) };
   }
 
   // ---- explain -------------------------------------------------------------------------------------------------

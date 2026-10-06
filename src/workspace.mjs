@@ -47,7 +47,7 @@ export function contextFromWorkspace(workspace, { task, products = [], classes =
   if (!Number.isSafeInteger(budget) || budget < 1 || budget > 1048576) reject("INPUT_INVALID", "Budget must be between 1 and 1048576 bytes.");
   const known = new Set(workspace.payloads.map((p) => p.product));
   if (products.some((p) => !known.has(p))) reject("PRODUCT_UNKNOWN", "A requested product has no registered projection.");
-  const family = !products.length || products.some((id) => workspace.payloads.some((p) => p.product === id && (p.scope === "parent" || p.family !== false)));
+  const family = !products.length || products.some((id) => workspace.payloads.find((p) => p.scope !== "parent" && p.product === id)?.family !== false);
   const selected = workspace.payloads.filter((p) => p.scope === "parent" ? family : products.includes(p.product));
   const bundle = teamBundle(selected, { task, products, classes, budget });
   return { ok: true, profile: "team", revision: workspace.revision, budget, overBudget: bundle.bytes > budget, ...bundle };

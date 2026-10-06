@@ -18,8 +18,8 @@
     "src/core/query.mjs": "6cf858034af9b2415f6195ffdc62aaff001be7ca68f5f998a209602d424add0f",
     "src/core/records.mjs": "e6feaca56947d8a4c3bfa622dd6c017f166e4b89d03be6847a827c01dcd3325f",
     "src/core/schemas.mjs": "3c9ea732342bf2ee60c5b056d54697de3f2079e2e4dfd17c602d798c43ab6cdd",
-    "src/core/serve.mjs": "042f9e8b0347e2df415fb449908f6c5d6bc33e900e715c2954b810f5a749d7f5",
-    "src/core/team.mjs": "9b03be8f1532027ecc86b250351e61c719a1d19544323a7c2137973654ba75eb",
+    "src/core/serve.mjs": "0a312c805e4b57b1cafcfb1ec2b7e3eac3008144cafbe48a37edbbda5d087c76",
+    "src/core/team.mjs": "fb35cfec3dca7895603c7242e52dc377573a86398690e51dc046fc2ab61be13c",
     "src/core/validate.mjs": "42db227e5375172d148d210a87f4413ae2f942d843cfda34d2df6a04a341ffb4"
   }
 }

@@ -58,3 +58,17 @@ test("all shipped graph schemas compile and core namespaces import without priva
   const schemas = compileSchemas(raw); assert.equal(schemas.node({}), false);
   const core = await import("../src/index.mjs"); assert.equal(typeof core.serve.makeServer, "function"); assert.equal(typeof core.intent.mintIntent, "function");
 });
+
+test('an independent product sharing the parent product id excludes parent constraints', (t) => {
+  const parent = projection();
+  parent.gate_config.projections.push({ path: 'product.md', handle: 'ctx:aaaaaaaa', product: 'sample' });
+  const product = { ...projection(), scope: 'product', projection: 'ctx:aaaaaaaa', family: false, items: [{ handle: 'ctx:bbbbbbbb', section: 'definitions', binding: true, text: 'Independent product definition.' }] };
+  delete product.gate_config;
+  product.paths = { story: ['docs/**'], pages: [], entries: [], landing: [], read: [], specific: false };
+  const root = fixture(t, parent); writeFileSync(join(root, 'product.md'), markdown(product));
+  const workspace = loadWorkspace(root);
+  const result = contextFromWorkspace(workspace, { task: 'Explain sample product', products: ['sample'] });
+  assert.match(result.text, /Independent product definition/);
+  assert.doesNotMatch(result.text, /old record is deprecated/);
+  assert.deepEqual(checkWorkspace(workspace, { lines: [{ path: 'docs/guide.md', line: 1, text: 'old record' }], products: ['sample'] }).findings, []);
+});

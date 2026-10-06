@@ -17,11 +17,11 @@ function fixture(t, payload = projection()) {
 
 test("CLI and library preserve binding constraints beyond the budget and report omissions", (t) => {
   const root = fixture(t); const workspace = loadWorkspace(root);
-  const result = contextFromWorkspace(workspace, { task: "Explain the sample product", products: ["sample"], budget: 1 });
+  const result = contextFromWorkspace(workspace, { task: "Explain sample project decisions", products: ["sample"], budget: 1 });
   assert.equal(result.overBudget, true); assert.equal(result.binding.length, 2);
   assert.match(result.text, /project decisions/); assert.match(result.text, /old record is deprecated/);
   assert.deepEqual(result.report.truncated, ["ctx:44444444"]); assert.equal(result.report.inaccessible.length, 1);
-  const cli = spawnSync(process.execPath, ["bin/context-graph.mjs", "context", "--root", root, "--task", "Explain the sample product", "--product", "sample", "--budget", "1", "--json"], { encoding: "utf8" });
+  const cli = spawnSync(process.execPath, ["bin/context-graph.mjs", "context", "--root", root, "--task", "Explain sample project decisions", "--product", "sample", "--budget", "1", "--json"], { encoding: "utf8" });
   assert.equal(cli.status, 0, cli.stderr); assert.deepEqual(JSON.parse(cli.stdout), result);
 });
 
@@ -57,4 +57,18 @@ test("all shipped graph schemas compile and core namespaces import without priva
   const raw = Object.fromEntries(GRAPH_SCHEMA_NAMES.map((name) => [name, JSON.parse(readFileSync(new URL(`../schemas/${name}.schema.json`, import.meta.url), "utf8"))]));
   const schemas = compileSchemas(raw); assert.equal(schemas.node({}), false);
   const core = await import("../src/index.mjs"); assert.equal(typeof core.serve.makeServer, "function"); assert.equal(typeof core.intent.mintIntent, "function");
+});
+
+test('an independent product sharing the parent product id excludes parent constraints', (t) => {
+  const parent = projection();
+  parent.gate_config.projections.push({ path: 'product.md', handle: 'ctx:aaaaaaaa', product: 'sample' });
+  const product = { ...projection(), scope: 'product', projection: 'ctx:aaaaaaaa', family: false, items: [{ handle: 'ctx:bbbbbbbb', section: 'definitions', binding: true, text: 'Independent product definition.' }] };
+  delete product.gate_config;
+  product.paths = { story: ['docs/**'], pages: [], entries: [], landing: [], read: [], specific: false };
+  const root = fixture(t, parent); writeFileSync(join(root, 'product.md'), markdown(product));
+  const workspace = loadWorkspace(root);
+  const result = contextFromWorkspace(workspace, { task: 'Explain sample product', products: ['sample'] });
+  assert.match(result.text, /Independent product definition/);
+  assert.doesNotMatch(result.text, /old record is deprecated/);
+  assert.deepEqual(checkWorkspace(workspace, { lines: [{ path: 'docs/guide.md', line: 1, text: 'old record' }], products: ['sample'] }).findings, []);
 });

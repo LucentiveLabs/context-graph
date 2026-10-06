@@ -31,7 +31,7 @@ jobs:
           node-version: 24
       - run: npm install --global --ignore-scripts npm@12.0.1
       - run: npm ci --ignore-scripts
-      - run: npm test && npm run check:pack && npm audit --omit=dev --audit-level=high
+      - run: npm test && npm run check:core && npm run check:pack && npm run check:install && npm audit --omit=dev --audit-level=high
       - run: node scripts/release.mjs prepare
         env:
           RELEASE_CONFIRM: ${{ inputs.confirm }}

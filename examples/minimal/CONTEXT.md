@@ -68,7 +68,7 @@ This fixture contains no private source records.
     {
       "handle": "ctx:44444444",
       "section": "ideas",
-      "text": "Optional inspiration for the sample explanation.",
+      "text": "Optional inspiration for explaining project decisions from source records.",
       "binding": false
     }
   ]

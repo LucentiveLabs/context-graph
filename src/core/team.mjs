@@ -6,9 +6,10 @@
 import { createHash } from "node:crypto";
 import { posix } from "node:path";
 
-export const TEAM_CORE = "context-team-core/v2";
+export const TEAM_CORE = "context-team-core/v3";
+export const SELECTION_ALGORITHM = "context-selection/v2";
 export const PAYLOAD_SCHEMA = "context-projection/v1";
-export const RECEIPT_SCHEMA = "context-receipt/v1";
+export const RECEIPT_SCHEMA = "context-receipt/v2";
 export const MACHINE_FENCE = "context-projection";
 export const BINDING_SECTIONS = ["terms", "definitions", "decisions", "acceptance"];
 export const SECTION_TITLES = {
@@ -20,7 +21,7 @@ export const SECTION_TITLES = {
   checks: "Check rules",
   claims: "Claim constraints (what our own docs state)",
   open: "Open decisions",
-  ideas: "Library ideas in our words (candidate applications, not documented influence; sources unnamed)",
+  ideas: "Library ideas in our words (relationship stated per item; sources unnamed)",
 };
 const ORDER = ["terms", "definitions", "decisions", "acceptance", "map", "checks", "claims", "open", "ideas"];
 const SECTIONS = new Set(Object.keys(SECTION_TITLES));
@@ -65,6 +66,12 @@ export function payloadProblems(p) {
   if (!Array.isArray(p.inaccessible)) P.push("inaccessible must be a list");
   for (const it of Array.isArray(p.items) ? p.items : []) {
     if (it.binding !== BINDING_SECTIONS.includes(it.section)) P.push(`item ${it.handle} binding must match its section`);
+    if (it.section === "ideas") {
+      if (it.confidence !== undefined && (typeof it.confidence !== "number" || !Number.isFinite(it.confidence) || it.confidence < 0 || it.confidence > 1)) P.push(`idea ${it.handle} confidence must be 0..1`);
+      if (it.exclusions !== undefined && !strArray(it.exclusions)) P.push(`idea ${it.handle} exclusions must be strings`);
+      if (it.evidence !== undefined && (!Array.isArray(it.evidence) || !it.evidence.every((e) => HANDLE.test(String(e?.handle)) && ["primary-excerpt", "source-paraphrase", "digest", "unlocated-synthesis", "unknown"].includes(e.kind) && (e.summary === undefined || typeof e.summary === "string")))) P.push(`idea ${it.handle} needs opaque evidence handles and known evidence kinds`);
+      if (it.relation !== undefined && !["documented influence", "candidate application"].includes(it.relation)) P.push(`idea ${it.handle} needs a known relationship`);
+    }
     if (it.section === "terms" && !(Array.isArray(it.deprecated) && it.deprecated.every((d) => typeof d?.text === "string" && typeof d?.re === "string"))) P.push(`term ${it.handle} needs deprecated [{ text, re }]`);
     if (it.section === "checks" && !(Array.isArray(it.patterns) && it.patterns.every((x) => typeof x?.re === "string"))) P.push(`check ${it.handle} needs patterns`);
     if (it.section === "acceptance") {
@@ -237,57 +244,108 @@ export function pageClosure(entry, files) {
   return seen;
 }
 
-const dedupe = (items) => { const seen = new Set(); return items.filter((it) => { const k = `${it.section}\n${it.text}`; if (seen.has(k)) return false; seen.add(k); return true; }); };
-const line = (it) => `- [${it.handle}] ${it.text}`;
+// Equal prose can carry different scope, exclusions or evidence. Only identical
+// semantic records can share one bullet; provenance-only fields do not change it.
+const stableValue = (v) => Array.isArray(v) ? v.map(stableValue) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, stableValue(v[k])])) : v;
+const dedupe = (items) => {
+  const seen = new Set();
+  return items.filter(({ handle, projection, parent, ...semantic }) => {
+    const key = JSON.stringify(stableValue(semantic));
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+};
+const line = (it) => {
+  let detail = "";
+  if (it.section === "acceptance") detail = ` (scope: ${it.applies_to.scope === "all-pages" ? "all pages" : `${it.applies_to.product}, ${it.applies_to.page || "product pages"}`})`;
+  if (it.section === "ideas") detail = ` (${it.relation || "relationship unknown"}; evidence: ${[...new Set((it.evidence || []).map((e) => e.kind))].join(", ") || "unknown"}${it.exclusions?.length ? `; excludes: ${it.exclusions.join("; ")}` : ""})`;
+  return `- [${it.handle}] ${it.text}${detail}`;
+};
 
-const STOP = new Set(["the", "and", "for", "with", "that", "this", "from", "into", "page", "pages", "make", "copy", "site", "edit", "edits", "work"]);
+const STOP = new Set(["the", "and", "for", "with", "that", "this", "from", "into", "page", "pages", "make", "copy", "site", "edit", "edits", "work", "explain", "write", "article", "story", "ideas", "find", "describe", "product", "about"]);
 /** Task words that rank non-binding items: lower case, four letters or more, minus a few that every story task shares. */
 export const taskWords = (task) => [...new Set(String(task || "").toLowerCase().match(/[\p{L}\p{N}][\p{L}\p{N}-]{3,}/gu) || [])].filter((w) => !STOP.has(w));
 const overlap = (words, text) => { const t = String(text).toLowerCase(); return words.reduce((n, w) => n + (t.includes(w) ? 1 : 0), 0); };
 
 /**
- * The team bundle: binding constraints first and never truncated, then meaning, check rules, claims, open decisions
- * and library ideas until the byte budget is spent. Truncated, missing and inaccessible items are listed, never
- * dropped silently. payloads: the parent projection plus one per product in scope. Within a section, items that share
- * more words with the task come first, then the product's own items before the parent's, then projection order. The
- * parent's portfolio map is cut to the named products. The result is deterministic for the same payloads, task,
- * products, classes and budget, so a receipt re-derives it.
+ * Deterministic projection selection. Bindings retain their scope and never truncate.
+ * Library/story requests reserve 30% of optional space for relevant ideas; unused
+ * space is shared. Every candidate is considered, so a large item cannot hide a
+ * smaller one. Structured reports retain all omitted handles without spending the
+ * prompt budget on that inventory. This algorithm is bound into v2 receipts.
  */
 export function teamBundle(payloads0, { task = "", products = [], classes = ["story"], budget = 12288, missing = [] } = {}) {
-  // Canonical order (the parent, then products by id), so the same projections give the same bundle in any order.
-  const payloads = uniquePayloads(payloads0).sort((a, b) => (a.scope === "parent" ? 0 : 1) - (b.scope === "parent" ? 0 : 1) || a.product.localeCompare(b.product));
-  const items = dedupe(payloads.flatMap((p) => (p.items || []).map((it, i) => ({ ...it, projection: p.projection, parent: p.scope === "parent", at: i }))));
+  const stable = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+  const payloads = uniquePayloads(payloads0).sort((a, b) => (a.scope === "parent" ? 0 : 1) - (b.scope === "parent" ? 0 : 1) || stable(a.product, b.product));
+  const items = dedupe(payloads.flatMap((p) => (p.items || []).map((it) => ({ ...it, projection: p.projection, parent: p.scope === "parent" }))));
   const story = classes.includes("story");
-  const words = taskWords(task);
-  const wanted = items.filter((it) => (story ? true : it.binding && it.section !== "acceptance")).filter((it) => !(it.parent && it.section === "map" && products.length && it.about && !products.includes(it.about)));
-  const bySection = (s) => wanted.filter((it) => it.section === s);
-  const ranked = (s) => bySection(s).map((it) => ({ it, score: overlap(words, it.text) })).sort((a, b) => b.score - a.score || (a.it.parent - b.it.parent) || a.it.at - b.it.at).map((x) => x.it);
-  const head = [
-    "# Context bundle (team profile)",
+  const wantsIdeas = story || classes.includes("library");
+  // Naming a product selects its projection; it is not evidence of topical
+  // relevance (for example a generic brand word appearing in an unrelated idea).
+  const productWords = new Set(payloads.filter((p) => products.includes(p.product)).flatMap((p) => taskWords(`${p.product.replaceAll("-", " ")} ${p.label || ""}`)));
+  const words = taskWords(task).filter((word) => !productWords.has(word));
+  const inScope = items.filter((it) => !(it.parent && it.section === "map" && products.length && it.about && !products.includes(it.about)))
+    .filter((it) => it.section !== "acceptance" || it.applies_to.scope === "all-pages" || products.includes(it.applies_to.product));
+  const allows = (it) => it.binding || story || (it.section === "ideas" && wantsIdeas) || (it.section === "checks" && classes.includes("governance"));
+  const wanted = inScope.filter(allows);
+  const score = (it) => overlap(words, [it.text, ...(it.evidence || []).map((e) => e.summary || "")].join(" "));
+  const evidenceQuality = (it) => Math.max(0, ...(it.evidence || []).map((e) => ({ "primary-excerpt": 3, "source-paraphrase": 2, "digest": 1 }[e.kind] || 0)));
+  const rank = (a, b) => score(b) - score(a) || evidenceQuality(b) - evidenceQuality(a) || (b.confidence || 0) - (a.confidence || 0) || stable(a.handle, b.handle) || stable(a.projection, b.projection);
+  const ideas = wanted.filter((it) => it.section === "ideas" && score(it) > 0).sort(rank);
+  const others = ORDER.filter((s) => !BINDING_SECTIONS.includes(s) && s !== "ideas")
+    .flatMap((s) => wanted.filter((it) => it.section === s).sort(rank));
+  const rest = [...ideas, ...others];
+  const binding = BINDING_SECTIONS.flatMap((s) => wanted.filter((it) => it.section === s));
+  const parts = ["# Context bundle (team profile)", `selection: ${SELECTION_ALGORITHM}`,
     `classes: ${classes.join(", ")}; products: ${products.length ? products.join(", ") : "none named"}`,
     `projections: ${payloads.map((p) => `${p.projection} (${p.scope === "parent" ? "parent" : p.product}, revalidate by ${p.revalidate_by})`).join("; ")}`,
-    "",
-  ];
-  const parts = [...head, "## Binding constraints (never truncated)"];
-  for (const s of BINDING_SECTIONS) { const list = bySection(s); if (list.length) parts.push(`### ${SECTION_TITLES[s]}`, ...list.map(line)); }
+    "", "## Binding constraints (never truncated)"];
+  for (const s of BINDING_SECTIONS) {
+    const list = binding.filter((it) => it.section === s);
+    if (list.length) parts.push(`### ${SECTION_TITLES[s]}`, ...list.map(line));
+  }
   const bindingText = `${parts.join("\n")}\n`;
   const inaccessible = payloads.flatMap((p) => (p.inaccessible || []).map((x) => `${p.scope === "parent" ? "parent" : p.product}: ${x.count} ${x.reason}`));
-  const rest = ORDER.filter((x) => !BINDING_SECTIONS.includes(x)).flatMap((s) => ranked(s).map((it) => ({ s, it })));
-  const render = (kept) => {
-    let text = bindingText; let last = null;
-    for (const { s, it } of kept) { if (s !== last) { text += `\n## ${SECTION_TITLES[s]}\n`; last = s; } text += `${line(it)}\n`; }
+  const ideaStatus = (kept, overflow = false) => !wantsIdeas ? "not-requested" : overflow ? "bindings-over-budget" : !ideas.length ? "no-relevant-ideas" : kept.some((it) => it.section === "ideas") ? "selected" : "omitted-by-budget";
+  const render = (kept, overflow = false) => {
+    let text = bindingText;
+    for (const s of ORDER.filter((x) => !BINDING_SECTIONS.includes(x))) {
+      const list = kept.filter((it) => it.section === s);
+      if (list.length) text += `\n## ${SECTION_TITLES[s]}\n${list.map(line).join("\n")}\n`;
+    }
+    text += ["", "## Report",
+      ...(overflow ? ["WARNING: bindings and the minimum report exceed the requested budget. Increase the budget before writing."] : []),
+      `- ideas: ${ideaStatus(kept, overflow)}; ${kept.filter((it) => it.section === "ideas").length}/${ideas.length} relevant candidates selected`,
+      `- truncated: ${rest.length - kept.length ? `${rest.length - kept.length} item(s); handles in report.truncated` : "none"}`,
+      `- missing: ${missing.length ? missing.join("; ") : "none"}`,
+      `- inaccessible: ${inaccessible.length ? inaccessible.join("; ") : "none"}`].join("\n") + "\n";
     return text;
   };
-  const reportOf = (truncated) => ["", "## Report", `- truncated: ${truncated.length ? `${truncated.length} item(s): ${truncated.join(", ")}` : "none"}`, `- missing: ${missing.length ? missing.join("; ") : "none"}`, `- inaccessible: ${inaccessible.length ? inaccessible.join("; ") : "none"}`].join("\n");
-  // Keep the longest prefix of the ranked items whose bundle, report included, fits the budget.
-  let kept = rest.length;
-  const total = (n) => Buffer.byteLength(`${render(rest.slice(0, n))}${reportOf(rest.slice(n).map((x) => x.it.handle))}\n`, "utf8");
-  if (total(kept) > budget) { let lo = 0; let hi = rest.length; while (lo < hi) { const mid = Math.ceil((lo + hi) / 2); if (total(mid) <= budget) lo = mid; else hi = mid - 1; } kept = lo; }
-  const truncated = rest.slice(kept).map((x) => x.it.handle);
-  const text = `${render(rest.slice(0, kept))}${reportOf(truncated)}\n`;
-  const binding = wanted.filter((it) => it.binding);
-  const strip = ({ projection, parent, at, ...it }) => ({ ...it, projection });
-  return { text, sha256: sha256(text), bytes: Buffer.byteLength(text, "utf8"), items: [...binding, ...rest.slice(0, kept).map((x) => x.it)].map(strip), binding: binding.map(strip), report: { truncated, missing, inaccessible } };
+  const size = (kept) => Buffer.byteLength(render(kept), "utf8");
+  const minimumBytes = size([]);
+  const overflow = minimumBytes > budget;
+  const kept = []; const chosen = new Set();
+  const fit = (candidates, limit) => {
+    for (const it of candidates) {
+      if (chosen.has(it)) continue;
+      if (size([...kept, it]) <= limit) { kept.push(it); chosen.add(it); }
+    }
+  };
+  if (!overflow) {
+    fit(ideas, minimumBytes + Math.floor((budget - minimumBytes) * 0.3));
+    fit(others, budget);
+    fit(ideas, budget); // borrow optional space that other sections did not use
+  }
+  const text = render(kept, overflow);
+  const truncated = rest.filter((it) => !chosen.has(it)).map((it) => it.handle);
+  const strip = ({ parent, ...it }) => it;
+  return { text, sha256: sha256(text), bytes: Buffer.byteLength(text, "utf8"),
+    selectionAlgorithm: SELECTION_ALGORITHM, requiredBytes: overflow ? Buffer.byteLength(text, "utf8") : minimumBytes,
+    items: [...binding, ...kept].map(strip), binding: binding.map(strip),
+    report: { truncated, missing, inaccessible,
+      ideas: { status: ideaStatus(kept, overflow), candidates: inScope.filter((it) => it.section === "ideas").length, relevant: wantsIdeas ? ideas.length : 0, selected: kept.filter((it) => it.section === "ideas").length },
+      excludedByClass: inScope.filter((it) => !allows(it)).length,
+      selection: { algorithm: SELECTION_ALGORITHM, optionalCandidates: rest.length, optionalSelected: kept.length, ideaBudgetFraction: 0.3 } } };
 }
 
 const reOf = (p) => { if (/[gy]/.test(p.flags || "")) throw new Error("pattern flags g and y are not allowed"); return new RegExp(p.re, `${p.flags || ""}g`); };
@@ -367,12 +425,17 @@ export function coverage(payloads, { products = [], files = new Map(), neverPage
       const lower = text.toLowerCase(); const miss = (it.phrases || []).filter((ph) => !lower.includes(ph.toLowerCase())); return miss.length ? [false, `missing ${miss.join(", ")}`] : [true, "all phrases present"];
     };
     const textOf = (pgs) => [...new Set(pgs.flatMap((pg) => [...pg.closure]))].filter((f) => !matches(neverPages, f)).map(vis).join("\n");
-    const seen = new Set();
-    for (const it of items) {
-      if (seen.has(it.text)) continue; seen.add(it.text);
+    for (const it of dedupe(items)) {
       const base = { product, rule: it.handle, text: it.text };
       if (it.applies_to.scope === "all-pages") for (const pg of touched) { const [ok, detail] = judge(it, textOf([pg])); results.push({ ...base, page: pg.entry, ok, detail }); }
       else if (it.applies_to.page === "landing") for (const pg of touched.filter((x) => x.landing)) { const [ok, detail] = judge(it, textOf([pg])); results.push({ ...base, page: pg.entry, ok, detail }); }
+      else if (it.applies_to.page) {
+        // A named page is an exact repository-relative entry path. An unknown
+        // selector must not silently widen the obligation to the page union.
+        const target = pages.find((pg) => pg.entry === it.applies_to.page);
+        if (!target && touched.length) results.push({ ...base, page: it.applies_to.page, ok: false, detail: "acceptance page is not a known product page entry" });
+        else if (target && touched.includes(target)) { const [ok, detail] = judge(it, textOf([target])); results.push({ ...base, page: target.entry, ok, detail }); }
+      }
       else if (touched.length) { const [ok, detail] = judge(it, textOf(pages)); results.push({ ...base, page: "(all pages of the product)", ok, detail }); }
     }
     if (changedSet && !pages.length && [...changedSet].some((rel) => productsForPath(payloads, rel).includes(product) && isPagePath(payloads, rel))) results.push({ product, rule: null, text: "Coverage needs the product's page entries.", ok: false, detail: "page files changed, but no page entry of this product was found" });
@@ -400,12 +463,13 @@ export function productsAffected(payloads, { files = new Map(), changed = [], ne
 export function receiptProblems(receipt, { contextFiles = new Map(), payloadsByPath = new Map() } = {}) {
   const P = [];
   if (!receipt || receipt.schema !== RECEIPT_SCHEMA) return [`receipt schema must be ${RECEIPT_SCHEMA}`];
+  if (receipt.selectionAlgorithm !== SELECTION_ALGORITHM) P.push(`receipt selectionAlgorithm must be ${SELECTION_ALGORITHM}`);
   if (typeof receipt.task_id !== "string" || !receipt.task_id.trim()) P.push("receipt needs a task_id");
   if (receipt.profile !== "team") P.push("a receipt in a team repository is team profile");
   if (!/^[a-f0-9]{64}$/.test(String(receipt.bundle_sha256))) P.push("receipt needs bundle_sha256");
   if (!strArray(receipt.products) || !receipt.products.length) P.push("receipt needs the products it covers");
-  if (!strArray(receipt.classes) || !receipt.classes.includes("story")) P.push("receipt is not a story bundle (classes lack story), so it carries no acceptance items");
-  if (!Number.isInteger(receipt.budget) || receipt.budget < 1024 || receipt.budget > 65536) P.push("receipt needs an integer budget between 1024 and 65536");
+  if (!strArray(receipt.classes) || !receipt.classes.includes("story")) P.push("receipt is not a story bundle (classes lack story); story delivery requires an explicit story request");
+  if (!Number.isInteger(receipt.budget) || receipt.budget < 1 || receipt.budget > 1048576) P.push("receipt needs an integer budget between 1 and 1048576");
   if (typeof receipt.task !== "string") P.push("receipt needs the task text its bundle was ranked by");
   if (!Array.isArray(receipt.projections) || !receipt.projections.length) P.push("receipt names no projections");
   if (P.length) return P;

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { loadWorkspace, contextFromWorkspace, checkWorkspace, workspaceStatus, WorkspaceError } from "./workspace.mjs";
 
 export function createServer(root, options = {}) {
-  const server = new McpServer({ name: "context-graph", version: "0.1.0" });
+  const server = new McpServer({ name: "context-graph", version: "0.2.0" });
   // Root and parent are startup configuration. A tool call cannot change them.
   const call = (fn) => async (args) => {
     try { return { content: [{ type: "text", text: JSON.stringify(fn(loadWorkspace(root, options), args)) }] }; }

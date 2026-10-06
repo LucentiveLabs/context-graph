@@ -24,9 +24,9 @@ For a synthetic example, a note-taking product might connect the idea of externa
 
 ## Current selection limits
 
-Version 0.1 selects from existing projections. It does not search every book, transcript, or source record for a task. Optional sections have a fixed order: `map` (meaning and relations), `checks`, `claims`, `open` (open decisions), then `ideas`. Word overlap ranks items **within** each section, not across sections. At a tight budget, claims can consume the space before any idea is returned.
+Version 0.2 ranks all relevant ideas present in the requested cleared projections. It does not search every book, transcript or source record. Upstream adapters must export the full eligible candidate set. The generic projection builder refuses exports larger than 1 MiB instead of silently trimming candidates.
 
-`library` and `governance` without `story` select only binding terms, definitions, and decisions. They exclude acceptance requirements and optional ideas without an omission notice. Include `story` to retain acceptance requirements and receive optional ideas; `story` plus `library` selects the same items as `story` alone. The report describes budget omissions, not every potentially useful source absent from the projection or excluded by class. A report with no omissions is not proof of complete research.
+`library` works on its own. Applicable binding requirements stay in every class; optional ideas get a reserved share of remaining space and borrow unused space. Read `report.ideas` and `report.truncated`: a successful request can still omit useful evidence. Increase the budget when the requested idea is omitted; do not silently call an incomplete packet ready. `no-relevant-ideas` is an honest result, not evidence that the source library has nothing useful.
 
 The projection client does not resolve handles back to original sources. Applications must provide that path. Summaries can lose conditions, exclusions, and evidence quality; verify the source before turning a summary into a strong claim.
 

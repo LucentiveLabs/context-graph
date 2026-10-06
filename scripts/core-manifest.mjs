@@ -1,0 +1,12 @@
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { TEAM_CORE, SELECTION_ALGORITHM, RECEIPT_SCHEMA } from '../src/core/team.mjs';
+const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url)));
+const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
+const root = new URL('../', import.meta.url);
+const files = Object.fromEntries(readdirSync(new URL('src/core/', root)).filter(x => x.endsWith('.mjs')).sort().map(name => [`src/core/${name}`, digest(readFileSync(new URL(`src/core/${name}`, root)))]));
+const expected = `${JSON.stringify({ schema: 'context-core-manifest/v1', package: pkg.name, version: pkg.version, teamCore: TEAM_CORE, selectionAlgorithm: SELECTION_ALGORITHM, receiptSchema: RECEIPT_SCHEMA, files }, null, 2)}\n`;
+const file = new URL('core-manifest.json', root);
+if (process.argv.includes('--write')) writeFileSync(file, expected);
+else if (readFileSync(file, 'utf8') !== expected) throw new Error('Core manifest differs from source. Run npm run update:core, review the changed hashes, then pin this release in consumers.');
+console.log(`core-manifest: PASS (${Object.keys(files).length} modules)`);

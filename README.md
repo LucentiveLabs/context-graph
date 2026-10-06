@@ -4,7 +4,7 @@ Give an agent a small, traceable packet of project knowledge before it writes or
 
 A team can have good source material and still get generic or contradictory output: the useful decision is in one document, the current product facts in another, and the explanation behind them somewhere else. Context Graph connects those records and serves the part a task needs. It keeps instructions, documented claims, and possible inspiration visibly separate.
 
-**Status: experimental 0.1 integration release.** The source is public and MIT licensed. The October 6, 2026 baseline assessment found no npm release; check the [release workflow](https://github.com/LucentiveLabs/context-graph/actions/workflows/release.yml) for subsequent publication and verification. The source quickstart below works independently of registry availability. Working interfaces do not establish retrieval effectiveness or better writing.
+**Status: experimental 0.2 integration release.** The source is public and MIT licensed. The October 6, 2026 baseline assessment found no npm release; check the [release workflow](https://github.com/LucentiveLabs/context-graph/actions/workflows/release.yml) for subsequent publication and verification. The source quickstart below works independently of registry availability. Working interfaces do not establish retrieval effectiveness or better writing.
 
 ```mermaid
 flowchart LR
@@ -20,14 +20,14 @@ Your application owns the sources and review decisions. This package supplies th
 
 ## Try it from source
 
-Requires Node.js **22.13 or newer** and npm. The commands use synthetic data and need no model-provider credentials.
+Requires Node.js **22.14 or newer** and npm. The commands use synthetic data and need no model-provider credentials.
 
 ```sh
 git clone https://github.com/LucentiveLabs/context-graph.git
 cd context-graph
 npm ci --ignore-scripts
 node bin/context-graph.mjs status --root examples/minimal
-node bin/context-graph.mjs context --root examples/minimal --task 'Explain the sample product' --product sample
+node bin/context-graph.mjs context --root examples/minimal --task 'Explain sample project decisions' --product sample
 npm test
 ```
 
@@ -41,7 +41,7 @@ Once a registry release has been verified, the intended installation is `npm ins
 |---|---|
 | Understand the idea without graph terminology | [How it works](docs/architecture.md) |
 | Try it, check text, or connect an agent | [Getting started](docs/getting-started.md) |
-| Build an integration or understand projection fields | [Interface reference](docs/reference.md) |
+| Build an integration or understand projection fields | [Integration guide](docs/integration.md), [interface reference](docs/reference.md) |
 | Use source material to improve writing and measure value | [Writing with context](docs/writing.md) |
 | Contribute, verify a change, or release | [Contributing](CONTRIBUTING.md) |
 | Understand the trust boundary or report a vulnerability | [Security](SECURITY.md) |
@@ -52,7 +52,7 @@ The projection client rejects missing, malformed, inconsistent, escaped, and exp
 
 A content hash identifies bytes. It does not prove that the source is true, that someone approved it, or that it can be published. A team projection is readable by every user and process with access to its files. Clear material before putting it there.
 
-Selection is deterministic and based on product, section priority, and word overlap. This is not semantic search over an entire library. In 0.1, include `story` to receive acceptance requirements and optional ideas. Without `story`, both `library` and `governance` return only binding terms, definitions, and decisions; acceptance requirements are omitted without a report entry. Read [current limits and evaluation](docs/writing.md#current-selection-limits) before relying on the output.
+Selection is deterministic and based on product scope and task-word overlap. Every class keeps applicable binding requirements. `library` adds relevant ideas, `governance` adds checks, and `story` includes the optional writing sections. Ideas receive a share of the available space; the report says when none match or the budget omits them. This searches cleared projections, not an entire source library. Read [current limits and evaluation](docs/writing.md#current-selection-limits) before relying on the output.
 
 ## Development
 

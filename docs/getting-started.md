@@ -1,12 +1,12 @@
 # Getting started
 
-Complete the source installation in the [README](../README.md). Run the examples below from the repository root with Node.js 22.13 or newer.
+Complete the source installation in the [README](../README.md). Run the examples below from the repository root with Node.js 22.14 or newer.
 
 ## Inspect a workspace and ask for context
 
 ```sh
 node bin/context-graph.mjs status --root examples/minimal
-node bin/context-graph.mjs context --root examples/minimal --task 'Explain the sample product' --product sample --class story --class library --json
+node bin/context-graph.mjs context --root examples/minimal --task 'Explain sample project decisions' --product sample --class story --class library --json
 ```
 
 `status` returns a workspace revision and projection inventory. `context` returns `text`, `items`, `binding`, `bytes`, `budget`, `overBudget`, and a `report` with `truncated`, `missing`, and `inaccessible` entries. The synthetic example deliberately includes one inaccessible notice.
@@ -36,7 +36,7 @@ import {
 
 const workspace = loadWorkspace('./knowledge');
 const bundle = contextFromWorkspace(workspace, {
-  task: 'Explain the sample product',
+  task: 'Explain sample project decisions',
   products: ['sample'],
   classes: ['story', 'library'],
   budget: 12288,

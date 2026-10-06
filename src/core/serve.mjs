@@ -44,8 +44,16 @@ export function makeServer(view) {
   const isFounderPrivate = (a) => a.policy?.visibility === "founder-private";
   /** A record a team item may rest on: present, not founder-private, and a founder anchor only when verified and active. */
   const assertionById = new Map(graph.assertions.map((x) => [x.record.id, x.record]));
+  // Item and excerpt IDs may themselves contain #. Only an extra selector
+  // beyond an existing record is a fragment (for example anchor#must-appear).
+  const recordRef = (ref) => {
+    const value = String(ref);
+    if (nodes.has(value) || assertionById.has(value)) return value;
+    const hash = value.lastIndexOf('#');
+    return hash < 0 ? value : value.slice(0, hash);
+  };
   const refEligible = (ref) => {
-    const id = String(ref).split("#")[0];
+    const id = recordRef(ref);
     const e = assertionById.get(id);
     if (e) return e.state !== "retired" && e.policy?.visibility !== "founder-private" && [e.from, e.to].every((x) => nodes.has(x) && !isFounderPrivate(nodes.get(x).record));
     const r = nodes.get(id)?.record; if (!r || isFounderPrivate(r)) return false;
@@ -174,13 +182,14 @@ export function makeServer(view) {
     }
     return out.slice(0, limit);
   }
-  function ideasFor(product, limit = serving.ideas_per_product || 6) {
+  function ideasFor(product, limit = Infinity) {
     const pid = `product:${product}`;
-    const edges = graph.assertions.map((x) => x.record).filter((e) => e.to === pid && ["candidate_application", "documented_influence"].includes(e.predicate) && rec(e.from)?.kind === "Concept" && e.state !== "retired");
-    return edges.sort((a, b) => (b.predicate === "documented_influence") - (a.predicate === "documented_influence") || b.confidence - a.confidence || a.from.localeCompare(b.from)).slice(0, limit).map((e) => ({ edge: e, concept: rec(e.from) }));
+    const edges = graph.assertions.map((x) => x.record).filter((e) => e.to === pid && ["candidate_application", "documented_influence"].includes(e.predicate) && rec(e.from)?.kind === "Concept" && isActive(rec(e.from)) && e.state !== "retired");
+    const seen = new Set();
+    return edges.sort((a, b) => (b.predicate === "documented_influence") - (a.predicate === "documented_influence") || b.confidence - a.confidence || a.from.localeCompare(b.from)).filter((e) => { if (seen.has(e.from)) return false; seen.add(e.from); return true; }).slice(0, limit).map((e) => ({ edge: e, concept: rec(e.from) }));
   }
   const canonRules = canon.rules || [];
-  const ruleBasis = (r) => r.basis.map((b) => b.split("#")[0]);
+  const ruleBasis = (r) => r.basis.map(recordRef);
   const ruleVerified = (r) => ruleBasis(r).every((id) => (rec(id)?.kind === "FounderAnchor" ? view.verified(id) && isActive(rec(id)) : rec(id)?.kind === "Inference"));
   function canonFor(a) { return canonRules.filter((r) => ruleBasis(r).includes(a.id) && r.section !== "acceptance"); }
   function canonForMust(anchorId, mustId) { return canonRules.find((r) => r.section === "acceptance" && r.basis.includes(`${anchorId}#${mustId}`)); }
@@ -227,7 +236,7 @@ export function makeServer(view) {
           for (const it of pj.payload.items) {
             if (!it.binding || it.section === "acceptance") continue;
             const b = pj.basis?.items?.[it.handle];
-            if (!b || !b.refs.some((r) => String(r).split("#")[0] === a.id) || !b.refs.every(refEligible)) continue;
+            if (!b || !b.refs.some((r) => recordRef(r) === a.id) || !b.refs.every(refEligible)) continue;
             found = true; used.add(key); if (pj.stale) stale.add(key);
             const k = `${it.section}\n${it.text}`; if (seen.has(k)) continue;
             seen.add(k); items.push(it);
@@ -269,7 +278,7 @@ export function makeServer(view) {
     if (!req.classes.includes("story") && req.classes.includes("governance")) b.report.inaccessible.push("governance decisions are served in the private profile only");
     const hits = view.scanner().scan(b.text, { surface: "team" });
     if (hits.length) return { ...base, applies: true, ok: false, error: `leak scanner refused the team bundle: ${hits.map((h) => h.id).join(", ")}` };
-    return { ...base, applies: true, ok: true, bundle_sha256: b.sha256, bytes: b.bytes, budget, text: b.text, binding: b.binding.map((it) => it.handle), included: b.items.map((it) => it.handle), report: b.report, projections: payloads.map((p) => ({ product: p.scope === "parent" ? "parent" : p.product, handle: p.projection, payload_sha256: view.projections.get(p.scope === "parent" ? "parent" : p.product).payload_sha256 })) };
+    return { ...base, applies: true, ok: true, bundle_sha256: b.sha256, bytes: b.bytes, budget, overBudget: b.bytes > budget, requiredBytes: b.requiredBytes, selectionAlgorithm: b.selectionAlgorithm, text: b.text, binding: b.binding.map((it) => it.handle), included: b.items.map((it) => it.handle), report: b.report, projections: payloads.map((p) => ({ product: p.scope === "parent" ? "parent" : p.product, handle: p.projection, payload_sha256: view.projections.get(p.scope === "parent" ? "parent" : p.product).payload_sha256 })) };
   }
 
   function captureLine(a) {
@@ -322,17 +331,26 @@ export function makeServer(view) {
     }
     const rows = extra.flatMap(([title, list]) => list.map(([id, row]) => ({ title, id, row })));
     const render = (n) => { let t = text; let last = null; for (const r of rows.slice(0, n)) { if (r.title !== last) { t += `\n## ${r.title}\n`; last = r.title; } t += `${r.row}\n`; } return t; };
-    const tail = (n) => Buffer.byteLength(`\n## Report\n- truncated: ${rows.slice(n).map((r) => r.id).join(", ")}\n- missing: ${missing.join("; ")}\n- inaccessible: interview anchors return id and sha256 only\n`, "utf8");
-    let kept = rows.length;
-    if (Buffer.byteLength(render(kept), "utf8") + tail(kept) > budget) { let lo = 0; let hi = rows.length; while (lo < hi) { const mid = Math.ceil((lo + hi) / 2); if (Buffer.byteLength(render(mid), "utf8") + tail(mid) <= budget) lo = mid; else hi = mid - 1; } kept = lo; }
-    text = render(kept);
-    const included = rows.slice(0, kept).map((r) => r.id); const truncated = rows.slice(kept).map((r) => r.id);
     const inaccessible = [];
     if (B.active.some((a) => a.capture?.class === "interview")) inaccessible.push("interview anchors return id and sha256 only");
-    text += `\n## Report\n- truncated: ${truncated.length ? `${truncated.length} item(s): ${truncated.join(", ")}` : "none"}\n- missing: ${missing.length ? missing.join("; ") : "none"}\n- inaccessible: ${inaccessible.length ? inaccessible.join("; ") : "none"}\n`;
+    // Keep the potentially unbounded omission inventory in the structured report.
+    // Measure the exact rendered report, including the binding-overflow warning.
+    const finish = (n, overflow = false) => `${render(n)}\n## Report\n${overflow ? "WARNING: bindings and the minimum report exceed the requested budget. Increase the budget before writing.\n" : ""}- truncated: ${rows.length - n ? `${rows.length - n} item(s); ids in report.truncated` : "none"}\n- missing: ${missing.length ? missing.join("; ") : "none"}\n- inaccessible: ${inaccessible.length ? inaccessible.join("; ") : "none"}\n`;
+    const minimumBytes = Buffer.byteLength(finish(0), "utf8");
+    const overBudget = minimumBytes > budget;
+    let kept = 0;
+    if (!overBudget) {
+      for (let n = 1; n <= rows.length; n += 1) {
+        if (Buffer.byteLength(finish(n), "utf8") > budget) break;
+        kept = n;
+      }
+    }
+    text = finish(kept, overBudget);
+    const included = rows.slice(0, kept).map((r) => r.id); const truncated = rows.slice(kept).map((r) => r.id);
+    const bytes = Buffer.byteLength(text, "utf8");
     const hits = view.scanner().scan(text, { surface: "private" });
     if (hits.length) return { ...base, applies: true, ok: false, ...(scoped ? { scoped: true } : {}), error: `leak scanner refused the private bundle: ${hits.map((h) => h.id).join(", ")}` };
-    return { ...base, applies: true, ok: true, ...(scoped ? { scoped: true } : {}), bundle_sha256: sha256(text), bytes: Buffer.byteLength(text, "utf8"), budget, text, binding: [...bindingIds, ...B.acceptance.map((x) => `${x.anchor}#${x.entry.id}`)], included, report: { truncated, missing, inaccessible }, superseded: B.superseded.map((s) => s.id) };
+    return { ...base, applies: true, ok: true, ...(scoped ? { scoped: true } : {}), bundle_sha256: sha256(text), bytes, budget, overBudget, requiredBytes: overBudget ? bytes : minimumBytes, text, binding: [...bindingIds, ...B.acceptance.map((x) => `${x.anchor}#${x.entry.id}`)], included, report: { truncated, missing, inaccessible }, superseded: B.superseded.map((s) => s.id) };
   }
 
   // ---- explain -------------------------------------------------------------------------------------------------
@@ -506,7 +524,7 @@ export function makeServer(view) {
   }
 
   const recAny = (id) => rec(id) || assertionById.get(id) || null;
-  return { recAny, refEligible, classify, productsFor, productsOfPath, binding, context, explain, impact, impactOf, questions, check, claimsFor, ideasFor, canonFor, canonForMust, ruleVerified, isActive, isFounderPrivate, flaggedFor, teamProducts, familyProducts, products, anchors, superseder, rec, scopeApplies, mustAppearApplies };
+  return { recAny, recordRef, refEligible, classify, productsFor, productsOfPath, binding, context, explain, impact, impactOf, questions, check, claimsFor, ideasFor, canonFor, canonForMust, ruleVerified, isActive, isFounderPrivate, flaggedFor, teamProducts, familyProducts, products, anchors, superseder, rec, scopeApplies, mustAppearApplies };
 }
 
 /** A stable short hash of any JSON value. */

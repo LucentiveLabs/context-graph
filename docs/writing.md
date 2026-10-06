@@ -24,7 +24,7 @@ For a synthetic example, a note-taking product might connect the idea of externa
 
 ## Current selection limits
 
-Version 0.1 selects from existing projections. It does not search every book, transcript, or source record for a task. Optional sections have a fixed order: meaning, checks, claims, open decisions, then ideas. Word overlap ranks items **within** each section, not across sections. At a tight budget, claims can consume the space before any idea is returned.
+Version 0.1 selects from existing projections. It does not search every book, transcript, or source record for a task. Optional sections have a fixed order: `map` (meaning and relations), `checks`, `claims`, `open` (open decisions), then `ideas`. Word overlap ranks items **within** each section, not across sections. At a tight budget, claims can consume the space before any idea is returned.
 
 `library` alone currently serves binding context without optional ideas. Include `story` to receive ideas. The report describes budget omissions, not every potentially useful source absent from the projection. A report with no omissions is not proof of complete research.
 

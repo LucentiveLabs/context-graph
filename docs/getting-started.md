@@ -49,7 +49,7 @@ const checked = checkWorkspace(workspace, {
 console.log(checked.findings);
 ```
 
-Copy `examples/minimal/CONTEXT.md` to `knowledge/CONTEXT.md` to run this example. In production, replace synthetic material with your cleared records and choose a meaningful revalidation deadline. Do not reuse the example's distant expiry as a production freshness policy. Reload the workspace when files change; a loaded workspace is an in-memory snapshot.
+Copy the complete `examples/minimal/` directory to `knowledge/` to run this example. In an installed package, the example is at `node_modules/@lucentive-labs/context-graph/examples/minimal/`. The minimal fixture registers only its own `CONTEXT.md`; a larger workspace must also include every product projection named in the parent registry. In production, replace synthetic material with your cleared records and choose a meaningful revalidation deadline. Do not reuse the example's distant expiry as a production freshness policy. Reload the workspace when files change; a loaded workspace is an in-memory snapshot.
 
 ## Connect an agent
 

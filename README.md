@@ -4,7 +4,7 @@ Give an agent a small, traceable packet of project knowledge before it writes or
 
 A team can have good source material and still get generic or contradictory output: the useful decision is in one document, the current product facts in another, and the explanation behind them somewhere else. Context Graph connects those records and serves the part a task needs. It keeps instructions, documented claims, and possible inspiration visibly separate.
 
-**Status: experimental 0.1 integration release.** The source is public and MIT licensed. As checked on October 6, 2026, the npm release is not yet available. Use the source quickstart below. Working interfaces do not establish retrieval effectiveness or better writing.
+**Status: experimental 0.1 integration release.** The source is public and MIT licensed. The October 6, 2026 baseline assessment found no npm release; check the [release workflow](https://github.com/LucentiveLabs/context-graph/actions/workflows/release.yml) for subsequent publication and verification. The source quickstart below works independently of registry availability. Working interfaces do not establish retrieval effectiveness or better writing.
 
 ```mermaid
 flowchart LR

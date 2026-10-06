@@ -1,34 +1,58 @@
 # Context Graph
 
-Experimental context infrastructure for agents: typed graph records, validated team projections, a local CLI and an optional read-only MCP server. Version 0.1 is an integration release. It does not claim that retrieval effectiveness has been established.
+Give an agent a small, traceable packet of project knowledge before it writes or reviews something.
 
-Requires Node.js 22.13 or newer.
+A team can have good source material and still get generic or contradictory output: the useful decision is in one document, the current product facts in another, and the explanation behind them somewhere else. Context Graph connects those records and serves the part a task needs. It keeps instructions, documented claims, and possible inspiration visibly separate.
 
-```sh
-npm install @lucentive-labs/context-graph
-npx context-graph status --root ./node_modules/@lucentive-labs/context-graph/examples/minimal
-npx context-graph context --root ./node_modules/@lucentive-labs/context-graph/examples/minimal --task 'Explain the sample product' --product sample
+**Status: experimental 0.1 integration release.** The source is public and MIT licensed. As checked on October 6, 2026, the npm release is not yet available. Use the source quickstart below. Working interfaces do not establish retrieval effectiveness or better writing.
+
+```mermaid
+flowchart LR
+  A[Your source records] --> B[Your review and clearance workflow]
+  B --> C[Approved project projections]
+  C --> D[Context Graph]
+  T[Writing or review task] --> D
+  D --> E[Constraints, claims, ideas and omissions]
+  E --> F[Your agent and editorial review]
 ```
 
-The example contains synthetic data only. To adopt it, replace the example projections with material cleared by your own source and privacy workflow. Revalidate projections by their declared dates.
+Your application owns the sources and review decisions. This package supplies the graph core, projection reader, command-line interface, portable agent skill, and optional read-only Model Context Protocol (MCP) server. It does not download books or podcasts, run a model, maintain your source library, or publish content.
 
-## Interfaces
+## Try it from source
 
-- **Library:** `import { serve, validate, project, intent, query } from '@lucentive-labs/context-graph'`. The core takes explicit graph views and policy adapters. It contains no model-provider client, credentials, personal store or source-capture agent.
-- **Projection API:** `loadWorkspace(root)` and `contextFromWorkspace(workspace, request)` from `@lucentive-labs/context-graph/workspace` use the same projection validation and bundle selection as the CLI and MCP server.
-- **CLI:** `context-graph context|check|status --root <directory> [--parent CONTEXT.md]`. Context accepts `--task`, repeated `--product`, repeated `--class story|governance|library`, `--budget <bytes>` and `--json`. Check reads `{lines:[{path,line,text}],products?:[id]}` from stdin.
-- **Agent skill:** copy `skills/context-graph/` into your host's skill directory. It adds no credentials or automatic background jobs.
-- **Optional MCP:** configure a stdio server that executes your installed `context-graph mcp --root /absolute/workspace`. Its tools are `context`, `check` and `status`; they cannot change the root or write files.
+Requires Node.js **22.13 or newer** and npm. The commands use synthetic data and need no model-provider credentials.
 
-The projection CLI reads only the parent projection and files in its registry. Missing, malformed, inconsistent, escaped or expired projections fail the request. Paths supplied to `check` label text; the server does not read those paths.
+```sh
+git clone https://github.com/LucentiveLabs/context-graph.git
+cd context-graph
+npm ci --ignore-scripts
+node bin/context-graph.mjs status --root examples/minimal
+node bin/context-graph.mjs context --root examples/minimal --task 'Explain the sample product' --product sample
+npm test
+```
 
-Binding constraints remain complete even when they exceed the byte budget. Optional items are ranked and truncated with an explicit report. A bundle hash identifies the exact returned bytes; it does not authenticate a source or establish permission to publish.
+The bundle contains the sample definition, a naming rule, an optional idea, and an explicit inaccessible-item notice. Try `--budget 1`: the binding requirements remain complete, while optional material is reported as omitted. A byte budget is not a hard limit on mandatory context.
 
-## Integration boundaries
+Once a registry release has been verified, the intended installation is `npm install @lucentive-labs/context-graph`. Track release attempts in [GitHub Actions](https://github.com/LucentiveLabs/context-graph/actions/workflows/release.yml). Source availability and npm availability are separate states.
 
-The core supports private graph adapters, typed provenance, scoped context, intent handoffs, leak scanning and propagation planning. The intent API takes the consuming contract adapter (`canonicalIntentJson`, `createIntentReceiptV2`, `assembleIntentReceipt`, `validateIntentCardV2`, and `validateIntentCardLineage`); that adapter owns card validation and immutable lineage. The package does not introduce a second card schema. These require the consuming application's authenticated records, policy, contract validators and clearance decisions. The included CLI and MCP adapter serve approved team projections only. Routine-task scope classification, private capture, automatic publication, model invocation and a durable agent lifecycle are outside that adapter.
+## Read next
 
-The protocol identifiers `origin-graph/v1` and `urn:origin:graph:*` remain for schema compatibility. They identify the wire format, not a connection to any private repository. Do not treat proposed graph records or agent interpretations as authenticated human instructions.
+| I want to... | Start here |
+|---|---|
+| Understand the idea without graph terminology | [How it works](docs/architecture.md) |
+| Try it, check text, or connect an agent | [Getting started](docs/getting-started.md) |
+| Build an integration or understand projection fields | [Interface reference](docs/reference.md) |
+| Use source material to improve writing and measure value | [Writing with context](docs/writing.md) |
+| Contribute, verify a change, or release | [Contributing](CONTRIBUTING.md) |
+| Understand the trust boundary or report a vulnerability | [Security](SECURITY.md) |
+
+## What it guarantees, and what it does not
+
+The projection client rejects missing, malformed, inconsistent, escaped, and expired registered projections. Library, CLI, and MCP use the same selection and check functions. Binding requirements survive budget pressure; optional omissions are listed. Paths passed to `check` label supplied text and are not opened as files.
+
+A content hash identifies bytes. It does not prove that the source is true, that someone approved it, or that it can be published. A team projection is readable by every user and process with access to its files. Clear material before putting it there.
+
+Selection is deterministic and based on product, section priority, and word overlap. This is not semantic search over an entire library. In 0.1, include the `story` class to receive optional ideas; `library` alone returns binding context only. Read [current limits and evaluation](docs/writing.md#current-selection-limits) before relying on the output.
 
 ## Development
 
@@ -36,15 +60,8 @@ The protocol identifiers `origin-graph/v1` and `urn:origin:graph:*` remain for s
 npm ci --ignore-scripts
 npm test
 npm run check:pack
+npm audit --omit=dev --audit-level=high
+bash scripts/security-scan.sh --mode full
 ```
 
-Before merging a PR, the reviewing operator runs the local full security scan
-and obtains the two independent reviews required by AGENTS.md. PR-controlled
-CI results alone do not establish security approval. The hosted security
-workflow runs only on reviewed main and blocks publication before the tarball
-gate. It also runs weekly. The separate scan checkout supplies data only;
-its scripts, install hooks and suppression files cannot replace the scanner.
-
-The release comes from this canonical repository. The release workflow gates a tarball without publication credentials, publishes those exact bytes through npm trusted publishing, then verifies the registry revision, tarball integrity, install/import behavior, and cryptographic signatures in a separate job. Configure the package trusted publisher for `LucentiveLabs/context-graph` and `release.yml` with direct publication enabled before the first release. No local npm token is part of this lane. A failed run can be retried through workflow dispatch with `confirm: recover`; an existing version is accepted only when its revision and bytes match. A public source release and a successful npm release are separate states.
-
-MIT licensed.
+Release runs from reviewed `main` through npm trusted publishing. It verifies the exact tarball, registry revision, install/import behavior, and cryptographic signatures. No local publishing token is part of this lane. See [release and maintenance](CONTRIBUTING.md#release-and-maintenance).

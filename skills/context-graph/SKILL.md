@@ -5,7 +5,7 @@ description: Read registered context-graph team projections before writing or re
 
 Use the workspace's configured context graph when it has a parent `CONTEXT.md` projection. The owning adapter must clear source material before creating those projections.
 
-Run `context-graph status --root <workspace>` to verify the inventory and revalidation dates. Then use `context-graph context --root <workspace> --task '<requested outcome>' --product <registered-id>`; select `--class governance` or `--class library` when appropriate. Read the binding constraints and the missing, inaccessible and truncated-item report. Binding requirements can exceed the requested byte budget; do not silently shorten them.
+Run `context-graph status --root <workspace>` to verify the inventory and revalidation dates. Then use `context-graph context --root <workspace> --task '<requested outcome>' --product <registered-id>`. For writing research use `--class story --class library`; in 0.1, `library` alone does not include optional ideas. Use `--class governance` for binding context. Read the binding constraints and the missing, inaccessible and truncated-item report. Binding requirements can exceed the requested byte budget; do not silently shorten them.
 
 Use the optional `context` MCP tool for the same operation when the host has configured it. The local MCP server reads the root fixed at startup; it does not capture sources, write records, or grant publication permission.
 

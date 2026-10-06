@@ -61,7 +61,7 @@ export function buildPayload(view, server, key, { date }) {
   const B = server.binding(req);
   const items = []; const basis = {}; const counts = new Map();
   const miss = (reason) => counts.set(reason, (counts.get(reason) || 0) + 1);
-  const recHash = (ref) => { const r = server.recAny(String(ref).split("#")[0]); return r ? canonicalHash(r) : null; };
+  const recHash = (ref) => { const r = server.recAny(server.recordRef(ref)); return r ? canonicalHash(r) : null; };
   const add = (itemKey, section, text, refs, extra = {}) => {
     const handle = ctxHandle(view.salt, scope, `${section}:${itemKey}`);
     if (basis[handle]) return;
@@ -84,7 +84,7 @@ export function buildPayload(view, server, key, { date }) {
       if (seenRules.has(r.id)) continue; seenRules.add(r.id);
       if (!server.ruleVerified(r)) { miss("constraint(s) whose founder anchor is not verified"); continue; }
       if (r.products && !parent && !r.products.includes(product.id) && !(r.products.includes(FAMILY) && server.familyProducts.has(product.id))) continue;
-      add(r.id, r.section, r.text, r.basis.map((b) => b.split("#")[0]), ruleExtra(r));
+      add(r.id, r.section, r.text, r.basis.map(server.recordRef), ruleExtra(r));
     }
   }
   for (const { anchor, entry } of B.acceptance) {
@@ -104,7 +104,7 @@ export function buildPayload(view, server, key, { date }) {
     const ok = parent ? (c.products || []).includes(FAMILY) : (c.products || []).includes(product.id) || ((c.products || []).includes(FAMILY) && server.familyProducts.has(product.id));
     if (!ok) continue;
     if (!server.ruleVerified(c)) { miss("check rule(s) whose founder anchor is not verified"); continue; }
-    add(c.id, "checks", c.text, c.basis.map((b) => b.split("#")[0]), { kind: c.kind, patterns: c.patterns });
+    add(c.id, "checks", c.text, c.basis.map(server.recordRef), { kind: c.kind, patterns: c.patterns });
   }
   for (const o of canon.open || []) if ((o.products || []).includes(parent ? PARENT : product.id)) add(o.id, "open", o.text, o.basis);
   if (parent) {
@@ -112,7 +112,7 @@ export function buildPayload(view, server, key, { date }) {
       const def = (canon.rules || []).find((r) => r.section === "definitions" && (r.products || []).includes(p.id) && server.ruleVerified(r));
       const rel = Object.entries(p.relations || {}).flatMap(([k, list]) => list.map((x) => `${RELATION_TEXT[k] || k} ${server.products.get(x.to)?.label || x.to}`));
       const first = def ? def.text.split(/(?<=\.)\s/)[0] : null;
-      add(`portfolio:${p.id}`, "map", `${p.label} (${p.class})${rel.length ? `; ${rel.join("; ")}` : ""}${first ? `. ${first}` : "."}`, [`product:${p.id}`, ...(def ? def.basis.map((b) => b.split("#")[0]) : [])], { about: p.id });
+      add(`portfolio:${p.id}`, "map", `${p.label} (${p.class})${rel.length ? `; ${rel.join("; ")}` : ""}${first ? `. ${first}` : "."}`, [`product:${p.id}`, ...(def ? def.basis.map(server.recordRef) : [])], { about: p.id });
     }
     // The parent's own claims: what the team canon states about the parent and every page (definitions, then
     // constraints and terms).

@@ -44,8 +44,16 @@ export function makeServer(view) {
   const isFounderPrivate = (a) => a.policy?.visibility === "founder-private";
   /** A record a team item may rest on: present, not founder-private, and a founder anchor only when verified and active. */
   const assertionById = new Map(graph.assertions.map((x) => [x.record.id, x.record]));
+  // Item and excerpt IDs may themselves contain #. Only an extra selector
+  // beyond an existing record is a fragment (for example anchor#must-appear).
+  const recordRef = (ref) => {
+    const value = String(ref);
+    if (nodes.has(value) || assertionById.has(value)) return value;
+    const hash = value.lastIndexOf('#');
+    return hash < 0 ? value : value.slice(0, hash);
+  };
   const refEligible = (ref) => {
-    const id = String(ref).split("#")[0];
+    const id = recordRef(ref);
     const e = assertionById.get(id);
     if (e) return e.state !== "retired" && e.policy?.visibility !== "founder-private" && [e.from, e.to].every((x) => nodes.has(x) && !isFounderPrivate(nodes.get(x).record));
     const r = nodes.get(id)?.record; if (!r || isFounderPrivate(r)) return false;
@@ -181,7 +189,7 @@ export function makeServer(view) {
     return edges.sort((a, b) => (b.predicate === "documented_influence") - (a.predicate === "documented_influence") || b.confidence - a.confidence || a.from.localeCompare(b.from)).filter((e) => { if (seen.has(e.from)) return false; seen.add(e.from); return true; }).slice(0, limit).map((e) => ({ edge: e, concept: rec(e.from) }));
   }
   const canonRules = canon.rules || [];
-  const ruleBasis = (r) => r.basis.map((b) => b.split("#")[0]);
+  const ruleBasis = (r) => r.basis.map(recordRef);
   const ruleVerified = (r) => ruleBasis(r).every((id) => (rec(id)?.kind === "FounderAnchor" ? view.verified(id) && isActive(rec(id)) : rec(id)?.kind === "Inference"));
   function canonFor(a) { return canonRules.filter((r) => ruleBasis(r).includes(a.id) && r.section !== "acceptance"); }
   function canonForMust(anchorId, mustId) { return canonRules.find((r) => r.section === "acceptance" && r.basis.includes(`${anchorId}#${mustId}`)); }
@@ -228,7 +236,7 @@ export function makeServer(view) {
           for (const it of pj.payload.items) {
             if (!it.binding || it.section === "acceptance") continue;
             const b = pj.basis?.items?.[it.handle];
-            if (!b || !b.refs.some((r) => String(r).split("#")[0] === a.id) || !b.refs.every(refEligible)) continue;
+            if (!b || !b.refs.some((r) => recordRef(r) === a.id) || !b.refs.every(refEligible)) continue;
             found = true; used.add(key); if (pj.stale) stale.add(key);
             const k = `${it.section}\n${it.text}`; if (seen.has(k)) continue;
             seen.add(k); items.push(it);
@@ -507,7 +515,7 @@ export function makeServer(view) {
   }
 
   const recAny = (id) => rec(id) || assertionById.get(id) || null;
-  return { recAny, refEligible, classify, productsFor, productsOfPath, binding, context, explain, impact, impactOf, questions, check, claimsFor, ideasFor, canonFor, canonForMust, ruleVerified, isActive, isFounderPrivate, flaggedFor, teamProducts, familyProducts, products, anchors, superseder, rec, scopeApplies, mustAppearApplies };
+  return { recAny, recordRef, refEligible, classify, productsFor, productsOfPath, binding, context, explain, impact, impactOf, questions, check, claimsFor, ideasFor, canonFor, canonForMust, ruleVerified, isActive, isFounderPrivate, flaggedFor, teamProducts, familyProducts, products, anchors, superseder, rec, scopeApplies, mustAppearApplies };
 }
 
 /** A stable short hash of any JSON value. */

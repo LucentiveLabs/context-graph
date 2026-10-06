@@ -66,18 +66,26 @@ test('projection builder exports the full eligible concept pool with conservativ
   const assertions = [];
   for (let n = 0; n < 9; n++) {
     const id = `concept:sample-${n}`;
-    nodes.set(id, { record: { id, kind: 'Concept', label: `Sample idea ${n}`, definition: 'Patient reflection supports a considered response.', excludes: ['No therapeutic claim'], examples: ['item:sample'], state: n === 8 ? 'retired' : 'accepted' } });
+    nodes.set(id, { record: { id, kind: 'Concept', label: `Sample idea ${n}`, definition: 'Patient reflection supports a considered response.', excludes: ['No therapeutic claim'], examples: ['item:sample#I001', 'excerpt:sample#E001', 'item:private#I001'], state: n === 8 ? 'retired' : 'accepted' } });
     assertions.push({ record: { id: `edge:sample-${n}`, from: id, to: 'product:sample', predicate: 'candidate_application', confidence: 0.8 } });
   }
-  nodes.set('item:sample', { record: { id: 'item:sample', kind: 'Item' } });
+  nodes.set('item:sample#I001', { record: { id: 'item:sample#I001', kind: 'Item' } });
+  nodes.set('excerpt:sample#E001', { record: { id: 'excerpt:sample#E001', kind: 'Excerpt', verified_against_sha256: 'a'.repeat(64) } });
+  nodes.set('item:private#I001', { record: { id: 'item:private#I001', kind: 'Item', policy: { visibility: 'founder-private' } } });
   const view = { graph: { nodes, assertions, table: {} }, serving: { parent_product: 'sample', team_repo: 'sample', ideas_per_product: 6 }, canon: {}, snapshot: { products: [product], artifacts: [] }, exports: new Map(), salt: 'synthetic-only', policyRevision: 'synthetic', verified: () => true };
   const server = makeServer(view);
   assert.equal(server.ideasFor('sample').length, 8);
-  const { payload } = buildPayload(view, server, 'sample', { date: '2026-10-06' });
+  const { payload, basis } = buildPayload(view, server, 'sample', { date: '2026-10-06' });
   const ideas = payload.items.filter(x => x.section === 'ideas');
   assert.equal(ideas.length, 8);
   assert.deepEqual(ideas[0].exclusions, ['No therapeutic claim']);
   assert.equal(ideas[0].evidence[0].kind, 'unknown');
+  assert.equal(ideas[0].evidence.length, 2);
+  assert.equal(ideas[0].evidence[1].kind, 'primary-excerpt');
+  assert.match(basis[ideas[0].handle].hashes['item:sample#I001'], /^[a-f0-9]{64}$/);
+  assert.match(basis[ideas[0].handle].hashes['excerpt:sample#E001'], /^[a-f0-9]{64}$/);
+  assert.equal(server.recordRef('item:sample#I001'), 'item:sample#I001');
+  assert.equal(server.recordRef('item:sample#I001#selector'), 'item:sample#I001');
   assert.match(ideas[0].evidence[0].handle, /^ctx:[a-f0-9]{8}$/);
   assert.ok(!JSON.stringify(payload).includes('item:sample'));
   assert.throws(() => renderContextMd({ ...payload, items: [{ ...ideas[0], text: 'x'.repeat(1024 * 1024) }] }), /exceeds 1 MiB/);

@@ -13,12 +13,12 @@
     "src/core/leak.mjs": "16c6e1a74d56ce342bc65b2e1627e2a59d0d7f7f5a6ee8bf418b357e31149f98",
     "src/core/portable.mjs": "a13f088868c6dd06879271ee2dd88d2ea4e6143f14595217b3ab950ab86c56ad",
     "src/core/predicates.mjs": "657009b28869afaea5ed8828a7f8512c974479a6c68340fc026e146ef3e55d08",
-    "src/core/project.mjs": "8d60e5369ddbf34d5b3f517ac7966112a8677d01bdf4065289de3c5db72f1c7b",
+    "src/core/project.mjs": "1913a7a9cd18c83563b0d4ba9ba98eb5ac98f6eea1217dfb8bfdeea53445f37c",
     "src/core/propagate.mjs": "ba9d07c87e9d9e4ee760ffde69faaf2e12820f0129537029af1a79c62fc41fef",
     "src/core/query.mjs": "6cf858034af9b2415f6195ffdc62aaff001be7ca68f5f998a209602d424add0f",
     "src/core/records.mjs": "e6feaca56947d8a4c3bfa622dd6c017f166e4b89d03be6847a827c01dcd3325f",
     "src/core/schemas.mjs": "3c9ea732342bf2ee60c5b056d54697de3f2079e2e4dfd17c602d798c43ab6cdd",
-    "src/core/serve.mjs": "62b69098637532df23c9711619662c2acfa29268b8e444c9c627e67e15659e9b",
+    "src/core/serve.mjs": "042f9e8b0347e2df415fb449908f6c5d6bc33e900e715c2954b810f5a749d7f5",
     "src/core/team.mjs": "9b03be8f1532027ecc86b250351e61c719a1d19544323a7c2137973654ba75eb",
     "src/core/validate.mjs": "42db227e5375172d148d210a87f4413ae2f942d843cfda34d2df6a04a341ffb4"
   }

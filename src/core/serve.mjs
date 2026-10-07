@@ -11,7 +11,7 @@
 // constraints only, under the same profile rules.
 import { canonicalHash } from "./canonical.mjs";
 import { stringsOf } from "./leak.mjs";
-import { coverage as teamCoverage, checkLines, productsForPath as teamProductsForPath, sha256, teamBundle } from "./team.mjs";
+import { coverage as teamCoverage, checkLines, matches, productsForPath as teamProductsForPath, sha256, teamBundle } from "./team.mjs";
 
 export const SERVE = "origin-graph-serve/v1";
 const TYPED = ["decision", "term", "definition"];
@@ -428,7 +428,9 @@ export function makeServer(view) {
         for (const a of view.snapshot?.artifacts || []) {
           if (a.repo !== TEAM_REPO) continue;
           if (deprecated.length) {
-            const n = view.occurrences ? view.occurrences(a, deprecated) : null;
+            // A variant allowed on the artifact's path is the accepted wording there, so it is not an occurrence.
+            const live = deprecated.filter((d) => !matches(d.allowed_paths, a.path));
+            const n = live.length && view.occurrences ? view.occurrences(a, live) : null;
             if (n) add({ kind: "artifact", id: a.id, class: blockingProducts.has(a.product) ? "blocking" : "review-required", why: `${n} occurrence(s) of a deprecated variant` });
           } else if (prods.includes(a.product) && ["product-md", "brief", "page-block", "faq", "article", "contract-test"].includes(a.kind)) add({ kind: "artifact", id: a.id, class: "review-required", why: `story file of ${a.product}` });
         }
@@ -494,7 +496,7 @@ export function makeServer(view) {
     // Candidate drift: canon rules whose anchors are not verified, and lexicon terms no verified rule covers.
     const candidates = [];
     const covered = new Set(canonRules.filter((r) => r.section === "terms" && ruleVerified(r)).flatMap((r) => (r.deprecated || []).map((d) => d.text.toLowerCase())));
-    for (const r of canonRules.filter((x) => x.section === "terms" && !ruleVerified(x))) for (const d of r.deprecated || []) for (const l of lines) if (new RegExp(d.re, d.flags || "").test(l.text)) candidates.push({ kind: "candidate-drift", rule: profile === "private" ? r.id : "an unverified term", path: l.path, line: l.line, found: d.text, note: "its founder anchor is not verified: reported to the conductor, never opened as a change (X03)" });
+    for (const r of canonRules.filter((x) => x.section === "terms" && !ruleVerified(x))) for (const d of r.deprecated || []) for (const l of lines) if (!matches(d.allowed_paths, l.path) && new RegExp(d.re, d.flags || "").test(l.text)) candidates.push({ kind: "candidate-drift", rule: profile === "private" ? r.id : "an unverified term", path: l.path, line: l.line, found: d.text, note: "its founder anchor is not verified: reported to the conductor, never opened as a change (X03)" });
     for (const t of view.lexicon?.terms || []) {
       const variants = String(t.deprecated).split(/[,;]\s*/).map((s) => s.replace(/\s*\(.*\)$/, "").toLowerCase());
       if (variants.every((v) => covered.has(v))) continue;

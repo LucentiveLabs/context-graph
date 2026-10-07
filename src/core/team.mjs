@@ -73,6 +73,7 @@ export function payloadProblems(p) {
       if (it.relation !== undefined && !["documented influence", "candidate application"].includes(it.relation)) P.push(`idea ${it.handle} needs a known relationship`);
     }
     if (it.section === "terms" && !(Array.isArray(it.deprecated) && it.deprecated.every((d) => typeof d?.text === "string" && typeof d?.re === "string"))) P.push(`term ${it.handle} needs deprecated [{ text, re }]`);
+    if (it.section === "terms" && Array.isArray(it.deprecated) && !it.deprecated.every((d) => d?.allowed_paths === undefined || (strArray(d.allowed_paths) && d.allowed_paths.length > 0 && d.allowed_paths.every(Boolean)))) P.push(`term ${it.handle}: a deprecated variant's allowed_paths, when given, lists path globs`);
     if (it.section === "checks" && !(Array.isArray(it.patterns) && it.patterns.every((x) => typeof x?.re === "string"))) P.push(`check ${it.handle} needs patterns`);
     if (it.section === "acceptance") {
       const a = it.applies_to || {};
@@ -370,7 +371,9 @@ const familyOf = (payloads, product) => uniquePayloads(payloads).find((x) => x.s
  * check: findings in the visible text of changed lines, per projection rules. input: { lines: [{ path, line, text }] }.
  * A path's own products decide which rules apply; a path no projection claims takes the products the caller names.
  * The parent's canon binds family products only. Term drift and contradictions rest on verified anchors (a projection
- * carries only those); restrictions name rules with no founder source; held paths are reported as held, not drift.
+ * carries only those); restrictions name rules with no founder source; held paths are reported as held, not drift. A
+ * deprecated variant's allowed_paths are where that variant is the accepted wording: it gives no finding there, while
+ * the term's other variants still apply on the same path.
  */
 export function checkLines(payloads, input, { lockedPaths = [], products = [] } = {}) {
   const findings = []; const all = uniquePayloads(payloads);
@@ -389,6 +392,7 @@ export function checkLines(payloads, input, { lockedPaths = [], products = [] } 
         if (it.section === "terms") {
           const clean = withoutExceptions(visible, it.exceptions);
           for (const d of it.deprecated || []) {
+            if (matches(d.allowed_paths, rel)) continue;
             const hits = clean.match(reOf(d)) || [];
             if (!hits.length) continue;
             const held = matches(it.held_paths, rel);

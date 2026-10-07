@@ -201,7 +201,7 @@ export function renderContextMd(payload) {
     L.push(`## ${TITLES[s]}${BINDING_SECTIONS.includes(s) ? " (binding)" : ""}`, "");
     for (const it of list) {
       let extra = "";
-      if (s === "terms" && it.deprecated?.length) extra = ` Retired: ${it.deprecated.map((d) => d.text).join(", ")}.${it.held_paths?.length ? ` Held, not drift: ${it.held_paths.join(", ")} (${it.held_reason}).` : ""}`;
+      if (s === "terms" && it.deprecated?.length) extra = ` Retired: ${it.deprecated.map((d) => `${d.text}${d.allowed_paths?.length ? ` (allowed in ${d.allowed_paths.join(", ")})` : ""}`).join(", ")}.${it.held_paths?.length ? ` Held, not drift: ${it.held_paths.join(", ")} (${it.held_reason}).` : ""}`;
       if (s === "acceptance") extra = ` Applies to ${it.applies_to.scope === "all-pages" ? "every page" : `${it.applies_to.product} ${it.applies_to.page || "pages"}`}.`;
       if (s === "claims") extra = ` (${it.facet}; ${it.source})`;
       if (s === "ideas") extra = ` (${it.relation})`;
@@ -220,7 +220,7 @@ export function renderContextMd(payload) {
 export function projectionLeaks(scanner, payload, md) {
   const hits = [];
   for (const { at, text } of stringsOf(payload)) {
-    if (/^\$\.items\[\d+\]\.(?:deprecated|patterns)\[\d+\]\.re$/.test(at) || /\.(?:story|pages|landing|story_paths|never_pages|locked_files|held_paths)\[\d+\]$/.test(at)) continue;
+    if (/^\$\.items\[\d+\]\.(?:deprecated|patterns)\[\d+\]\.re$/.test(at) || /\.(?:story|pages|landing|story_paths|never_pages|locked_files|held_paths|allowed_paths)\[\d+\]$/.test(at)) continue;
     for (const h of scanner.scan(text, { surface: "team" })) hits.push({ ...h, at });
   }
   for (const h of scanMarkdown(scanner, md, { surface: "team" })) hits.push({ ...h, at: "CONTEXT.md" });

@@ -13,6 +13,7 @@
 
 ## Unreleased
 
+- A deprecated term variant may name `allowed_paths`: path globs where that variant is the accepted wording (for example a product that keeps a name the rest of the family retires). `check` gives no finding for it there while the term's other variants still apply, impact no longer counts it as an occurrence in artifacts on those paths, and the rendered CONTEXT.md lists the allowance beside the retired variant. Additive: a projection without the field behaves as before, and a reader that predates it reports the variant as drift.
 - Add a source-install quickstart, plain-language architecture and diagrams, projection/API reference, writing and evaluation guide, contributor instructions, and security reporting guidance.
 - State npm release availability explicitly and document current selection and check-result semantics.
 - Resolve the verified release tarball to an absolute local path so npm does not interpret it as a GitHub package reference.

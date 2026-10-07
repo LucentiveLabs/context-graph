@@ -272,28 +272,37 @@ const overlap = (words, text) => { const t = String(text).toLowerCase(); return 
  * Library/story requests reserve 30% of optional space for relevant ideas; unused
  * space is shared. Every candidate is considered, so a large item cannot hide a
  * smaller one. Structured reports retain all omitted handles without spending the
- * prompt budget on that inventory. This algorithm is bound into v2 receipts.
+ * prompt budget on that inventory. Optional items rank by task-word overlap. Ideas
+ * then rank by evidence quality, confidence and stable handles; the product-linked
+ * sections (meaning, checks, claims, open decisions) keep the order their projection
+ * declares, the named product's own projection before the parent's, so a budget cut
+ * never falls to handle order. This algorithm is bound into v2 receipts.
  */
 export function teamBundle(payloads0, { task = "", products = [], classes = ["story"], budget = 12288, missing = [] } = {}) {
   const stable = (a, b) => a < b ? -1 : a > b ? 1 : 0;
   const payloads = uniquePayloads(payloads0).sort((a, b) => (a.scope === "parent" ? 0 : 1) - (b.scope === "parent" ? 0 : 1) || stable(a.product, b.product));
-  const items = dedupe(payloads.flatMap((p) => (p.items || []).map((it) => ({ ...it, projection: p.projection, parent: p.scope === "parent" }))));
+  // at: the declared position across the canonically ordered payloads, the tie-breaker of the product-linked sections.
+  const items = dedupe(payloads.flatMap((p) => (p.items || []).map((it) => ({ ...it, projection: p.projection, parent: p.scope === "parent" })))).map((it, at) => ({ ...it, at }));
   const story = classes.includes("story");
   const wantsIdeas = story || classes.includes("library");
-  // Naming a product selects its projection; it is not evidence of topical
-  // relevance (for example a generic brand word appearing in an unrelated idea).
+  // Naming a product selects its projection. For the product-linked sections (meaning, checks, claims and open
+  // decisions: what the projection states about that product) its name is lexical relevance like any other task
+  // word. For ideas it is not: a generic brand word appearing in an unrelated library idea does not make it relevant.
   const productWords = new Set(payloads.filter((p) => products.includes(p.product)).flatMap((p) => taskWords(`${p.product.replaceAll("-", " ")} ${p.label || ""}`)));
-  const words = taskWords(task).filter((word) => !productWords.has(word));
+  const words = taskWords(task);
+  const ideaWords = words.filter((word) => !productWords.has(word));
   const inScope = items.filter((it) => !(it.parent && it.section === "map" && products.length && it.about && !products.includes(it.about)))
     .filter((it) => it.section !== "acceptance" || it.applies_to.scope === "all-pages" || products.includes(it.applies_to.product));
   const allows = (it) => it.binding || story || (it.section === "ideas" && wantsIdeas) || (it.section === "checks" && classes.includes("governance"));
   const wanted = inScope.filter(allows);
-  const score = (it) => overlap(words, [it.text, ...(it.evidence || []).map((e) => e.summary || "")].join(" "));
+  const score = (it) => overlap(it.section === "ideas" ? ideaWords : words, [it.text, ...(it.evidence || []).map((e) => e.summary || "")].join(" "));
   const evidenceQuality = (it) => Math.max(0, ...(it.evidence || []).map((e) => ({ "primary-excerpt": 3, "source-paraphrase": 2, "digest": 1 }[e.kind] || 0)));
-  const rank = (a, b) => score(b) - score(a) || evidenceQuality(b) - evidenceQuality(a) || (b.confidence || 0) - (a.confidence || 0) || stable(a.handle, b.handle) || stable(a.projection, b.projection);
-  const ideas = wanted.filter((it) => it.section === "ideas" && score(it) > 0).sort(rank);
+  const rankIdeas = (a, b) => score(b) - score(a) || evidenceQuality(b) - evidenceQuality(a) || (b.confidence || 0) - (a.confidence || 0) || stable(a.handle, b.handle) || stable(a.projection, b.projection);
+  // Equal relevance keeps the declared order: the named product's own items before the parent's, then the projection's.
+  const rankDeclared = (a, b) => score(b) - score(a) || (a.parent ? 1 : 0) - (b.parent ? 1 : 0) || a.at - b.at;
+  const ideas = wanted.filter((it) => it.section === "ideas" && score(it) > 0).sort(rankIdeas);
   const others = ORDER.filter((s) => !BINDING_SECTIONS.includes(s) && s !== "ideas")
-    .flatMap((s) => wanted.filter((it) => it.section === s).sort(rank));
+    .flatMap((s) => wanted.filter((it) => it.section === s).sort(rankDeclared));
   const rest = [...ideas, ...others];
   const binding = BINDING_SECTIONS.flatMap((s) => wanted.filter((it) => it.section === s));
   const parts = ["# Context bundle (team profile)", `selection: ${SELECTION_ALGORITHM}`,
@@ -338,7 +347,7 @@ export function teamBundle(payloads0, { task = "", products = [], classes = ["st
   }
   const text = render(kept, overflow);
   const truncated = rest.filter((it) => !chosen.has(it)).map((it) => it.handle);
-  const strip = ({ parent, ...it }) => it;
+  const strip = ({ parent, at, ...it }) => it;
   return { text, sha256: sha256(text), bytes: Buffer.byteLength(text, "utf8"),
     selectionAlgorithm: SELECTION_ALGORITHM, requiredBytes: overflow ? Buffer.byteLength(text, "utf8") : minimumBytes,
     items: [...binding, ...kept].map(strip), binding: binding.map(strip),

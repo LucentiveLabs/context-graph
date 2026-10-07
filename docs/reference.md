@@ -58,7 +58,7 @@ Bundle fields include `profile`, `revision`, `text`, `sha256`, `items`, `binding
 | `bindings-over-budget` | Mandatory context and its report exceed the budget |
 | `not-requested` | Classes exclude ideas |
 
-Product-name words select scope and do not count as topical relevance. The selector uses task-word overlap, then evidence quality, confidence and stable handles. Zero-overlap ideas are excluded from the candidate selection, never presented as relevant. This is a lexical heuristic, not a measure of truth or a promise of exhaustive research.
+Product-name words select scope. For ideas they do not count as topical relevance; a brand word in an unrelated library idea does not make it relevant. For the product-linked sections (meaning, checks, claims and open decisions, which state what the projection says about that product) they count like any other task word. Ideas rank by task-word overlap, then evidence quality, confidence and stable handles. The other optional sections rank by task-word overlap, then the named product's own projection before the parent's, then the order the projection declares, so a budget cut never falls to arbitrary handle order. Zero-overlap ideas are excluded from the candidate selection, never presented as relevant. This is a lexical heuristic, not a measure of truth or a promise of exhaustive research.
 
 ## Projection format
 

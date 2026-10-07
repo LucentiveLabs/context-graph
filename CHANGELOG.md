@@ -6,6 +6,7 @@
 - Deterministic task ranking, idea space reservation, oversized-item skipping and explicit idea omission diagnostics.
 - Full eligible concept export with a 1 MiB refusal, opaque evidence metadata and semantic exclusions.
 - Selection/v2 and receipt/v2 make the behavior change explicit. Regenerate receipts after reader upgrades; keep v1 history at its original pin.
+- Product-linked claims keep lexical relevance: the named product's words score claims, meaning, checks and open decisions (ideas still exclude them), and equal-relevance items keep their projection's declared order, the named product's own projection first, instead of handle order. Bundles and receipt hashes taken from the earlier 0.2 source pin change; regenerate them.
 - Canonical core file manifest and source/vendoring integration guide. Node minimum aligns with tested 22.14+.
 - Registry publication remains a separately verified release outcome.
 

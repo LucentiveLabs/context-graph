@@ -162,3 +162,38 @@ test('private bundles keep large omission inventories outside the prompt and rep
   assert.equal(overflow.overBudget, true); assert.equal(overflow.requiredBytes, overflow.bytes);
   assert.match(overflow.text, /WARNING: bindings/);
 });
+
+const claim = (handle, text) => ({ handle, section: 'claims', binding: false, text });
+const productProjection = (items) => ({ ...projection(), scope: 'product', projection: 'ctx:aaaaaaaa', family: true, label: 'Sample', gate_config: undefined,
+  paths: { story: ['docs/**'], pages: ['docs/*.html'], entries: ['docs/*.html'], landing: ['docs/index.html'], read: [], specific: false }, items });
+
+test('a product-linked claim the task needs survives the default budget when the task names the product', () => {
+  const parent = projection();
+  parent.gate_config.projections.push({ path: 'product.md', handle: 'ctx:aaaaaaaa', product: 'sample' });
+  const filler = Array.from({ length: 80 }, (_, n) => claim(`ctx:${n.toString(16).padStart(8, '0')}`, `Current fact ${n} about the shared workflow and its records. `.repeat(3)));
+  const needed = claim('ctx:ffffffff', 'The sample starts with a five-direction visual round before any page is rebuilt.');
+  const own = productProjection([...filler, needed, idea(0xfffffffe, 'The sample uses a garden metaphor for seasonal growth.')]);
+  const b = teamBundle([parent, own], { task: 'Sample product site', products: ['sample'], classes: ['story'] });
+  assert.ok(b.bytes <= 12288);
+  assert.ok(b.report.truncated.length > 0, 'the budget must actually cut claims');
+  assert.ok(b.items.some(x => x.handle === 'ctx:ffffffff'), 'the claim naming the product outranks claims that do not');
+  assert.equal(b.items.filter(x => x.section === 'claims')[0].handle, 'ctx:ffffffff');
+  assert.equal(b.report.ideas.status, 'no-relevant-ideas', 'the product name alone still does not make an idea relevant');
+});
+
+test('equal-relevance claims keep their declared order, the named product first, and task words outrank it', () => {
+  const parent = projection();
+  parent.gate_config.projections.push({ path: 'product.md', handle: 'ctx:aaaaaaaa', product: 'sample' });
+  const parentClaims = [1, 2, 3].map(n => claim(`ctx:0000000${n}`, `Umbrella statement ${n} about the portfolio. `.repeat(4)));
+  parent.items.push(...parentClaims);
+  const ownClaims = [1, 2, 3, 4, 5].map(n => claim(`ctx:fffffff${n}`, `Product statement ${n} about its own delivery. `.repeat(4)));
+  const own = productProjection(ownClaims);
+  const request = { task: 'Describe the launch', products: ['sample'], classes: ['story'] };
+  const budget = teamBundle([parent, own], request).requiredBytes + 4 * 210;
+  const kept = (payloads, extra = {}) => teamBundle(payloads, { ...request, budget, ...extra }).items.filter(x => x.section === 'claims').map(x => x.handle);
+  assert.deepEqual(kept([parent, own]), ['ctx:fffffff1', 'ctx:fffffff2', 'ctx:fffffff3', 'ctx:fffffff4'], 'the product projection comes first in its declared order, not in handle order');
+  assert.deepEqual(kept([own, parent]), kept([parent, own]), 'payload order does not change the bundle');
+  assert.deepEqual(kept([parent, { ...own, items: [...ownClaims].reverse() }]), ['ctx:fffffff5', 'ctx:fffffff4', 'ctx:fffffff3', 'ctx:fffffff2'], 'the projection declares the order');
+  parent.items.push(claim('ctx:00000009', 'The launch date is fixed by the portfolio calendar.'));
+  assert.equal(kept([parent, own])[0], 'ctx:00000009', 'a claim sharing a task word outranks equal-relevance declared order');
+});

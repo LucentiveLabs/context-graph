@@ -34,7 +34,7 @@ The low-level graph modules also support building and validating the typed recor
 
 1. The client opens the parent projection and every file in its registry. It checks path confinement, shape, identity, duplicate consistency, and expiry. An unrelated expired registered file also blocks the workspace request.
 2. It selects explicitly named product projections and the parent for family products. The simple client does not infer product IDs from the task.
-3. Every class keeps applicable binding terms, definitions, decisions and acceptance. `library` selects relevant ideas, `governance` adds checks, and `story` includes the optional writing sections. Word overlap ranks candidates; relevant ideas receive a reserved share of optional space. Oversized optional items do not hide later smaller ones.
+3. Every class keeps applicable binding terms, definitions, decisions and acceptance. `library` selects relevant ideas, `governance` adds checks, and `story` includes the optional writing sections. Word overlap ranks candidates, and a product's name counts for the claims and other statements its projection makes about it; equal-relevance claims keep the order their projection declares. Relevant ideas receive a reserved share of optional space. Oversized optional items do not hide later smaller ones.
 4. It returns text, a hash, selected items, and an omission report. The caller reads the report before using the bundle.
 5. The application reviews the output against current product evidence and publication permissions. Deterministic text checks can find declared patterns; they cannot establish that a story is good or a claim is true.
 

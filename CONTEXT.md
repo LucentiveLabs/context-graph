@@ -29,7 +29,7 @@ Reviewed orientation and engineering facts. Source changes require review and ha
       },
       {
         "path": "src/workspace.mjs",
-        "sha256": "d7242116fdef9a0195330f87d6113a1278c4999427b9fff8fcb9e84e66d5bfe7"
+        "sha256": "4c7a74d2fb494bd6563df31ffd5e1df4905f7af923ff8a9c0599d1b860b08f6a"
       },
       {
         "path": "src/mcp.mjs",

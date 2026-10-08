@@ -72,9 +72,12 @@ export function payloadProblems(p) {
     else if (new Set(r.sources.map((s) => s.path)).size !== r.sources.length) P.push("repository source paths must be unique");
   }
   for (const it of Array.isArray(p.items) ? p.items : []) {
+    if (!it || typeof it !== "object") continue; // The shape error above owns malformed entries.
     if (it.classes !== undefined && (!strArray(it.classes) || !it.classes.length || !it.classes.every((c) => CONTEXT_CLASSES.includes(c)))) P.push(`item ${it.handle} needs known classes`);
     if (it.paths !== undefined && (!strArray(it.paths) || !it.paths.length || !it.paths.every(relativePath))) P.push(`item ${it.handle} needs relative path globs`);
-    if (Array.isArray(it.classes) && it.classes.some((c) => ["orientation", "engineering"].includes(c)) && (!Array.isArray(it.source_paths) || !it.source_paths.length || !it.source_paths.every((path) => Array.isArray(p.repository?.sources) && p.repository.sources.some((s) => s.path === path)))) P.push(`item ${it.handle} needs registered repository source_paths`);
+    const repositoryItem = Array.isArray(it.classes) && it.classes.some((c) => ["orientation", "engineering"].includes(c));
+    if ((repositoryItem || it.source_paths !== undefined) && (!strArray(it.source_paths) || !it.source_paths.length || !it.source_paths.every((path) => Array.isArray(p.repository?.sources) && p.repository.sources.some((s) => s?.path === path)))) P.push(`item ${it.handle} needs registered repository source_paths`);
+    if (repositoryItem && ["terms", "checks", "acceptance"].includes(it.section)) P.push(`item ${it.handle}: repository classes cannot declare product terms, checks or acceptance`);
     if (it.binding !== BINDING_SECTIONS.includes(it.section)) P.push(`item ${it.handle} binding must match its section`);
     if (it.section === "ideas") {
       if (it.confidence !== undefined && (typeof it.confidence !== "number" || !Number.isFinite(it.confidence) || it.confidence < 0 || it.confidence > 1)) P.push(`idea ${it.handle} confidence must be 0..1`);
@@ -289,7 +292,7 @@ const overlap = (words, text) => { const t = new Set(tokens(text)); return words
  * then rank by evidence quality, confidence and stable handles; the product-linked
  * sections (meaning, checks, claims, open decisions) keep the order their projection
  * declares, the named product's own projection before the parent's, so a budget cut
- * never falls to handle order. This algorithm is bound into v2 receipts.
+ * never falls to handle order. This algorithm is bound into v3 receipts.
  */
 export function teamBundle(payloads0, { task = "", products = [], classes = ["story"], budget = 12288, missing = [], repo = null, paths = [] } = {}) {
   const stable = (a, b) => a < b ? -1 : a > b ? 1 : 0;

@@ -3,11 +3,12 @@ import test from 'node:test';
 import { mkdtempSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { projection, markdown } from './fixture.mjs';
-import { sha256, taskWords, teamBundle } from '../src/core/team.mjs';
+import { sha256, taskWords, teamBundle, payloadProblems } from '../src/core/team.mjs';
 import { loadWorkspace, contextFromWorkspace } from '../src/workspace.mjs';
 
 const source = '# Sample\nThe API adapter reads approved records. Capture belongs to its owner.\n';
@@ -26,6 +27,40 @@ function fixture(t) {
   return { root, p };
 }
 const request = { task: 'Explain this repository purpose, architecture, boundaries and current implementation.', classes: ['orientation'], repo: 'sample-repo', budget: 4096 };
+
+test('the shipped repository baseline resolves current source bytes and fits its orientation budget', () => {
+  const workspace = loadWorkspace(fileURLToPath(new URL('../', import.meta.url)));
+  const result = contextFromWorkspace(workspace, { ...request, repo: 'context-graph' });
+  assert.equal(result.ok, true);
+  assert.equal(result.items.length, 8);
+  assert.deepEqual(result.report.truncated, []);
+  assert.ok(result.bytes <= 4096);
+  assert.equal(result.overBudget, false);
+});
+
+test('missing repository ids and malformed source metadata have explicit errors', (t) => {
+  const { root, p } = fixture(t);
+  assert.throws(() => contextFromWorkspace(loadWorkspace(root), { ...request, products: null }), { code: 'INPUT_INVALID' });
+  delete p.repository;
+  p.items = p.items.slice(0, 3);
+  writeFileSync(join(root, 'CONTEXT.md'), markdown(p));
+  assert.throws(() => contextFromWorkspace(loadWorkspace(root), { ...request, repo: null }), { code: 'REPOSITORY_UNKNOWN' });
+  p.items[0].source_paths = 'README.md';
+  assert.ok(payloadProblems(p).some(x => x.includes('source_paths')));
+  writeFileSync(join(root, 'CONTEXT.md'), markdown(p));
+  assert.throws(() => loadWorkspace(root), { code: 'PROJECTION_INVALID' });
+  p.items = [null];
+  assert.ok(payloadProblems(p).some(x => x.includes('items must')));
+});
+
+test('repository classes cannot introduce product validation rules', (t) => {
+  const { p } = fixture(t);
+  for (const section of ['terms', 'checks', 'acceptance']) {
+    const candidate = structuredClone(p);
+    candidate.items[3].section = section;
+    assert.ok(payloadProblems(candidate).some(x => x.includes('repository classes cannot declare')));
+  }
+});
 
 test('repository orientation has sourced context without unrelated story bindings or library ideas', (t) => {
   const { root } = fixture(t);

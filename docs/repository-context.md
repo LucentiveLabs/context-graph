@@ -51,3 +51,5 @@ A host should request orientation before substantive work and reuse it only whil
 Version 0.3 uses `context-selection/v3` and `context-receipt/v3`. Exact normalized token matching now retains short identifiers such as API and IAS and avoids substring matches such as line/deadline. Selection and bundle hashes therefore change. Install compatible readers first, regenerate current delivery receipts, and retain historical v1/v2 receipts with their exact source pins. Do not relabel old receipts. The existing receipt validator still serves story delivery; host delivery receipts for engineering are the owning adapter's responsibility.
 
 Use real tasks to measure whether a baseline improves outcomes. Successful lookup, source-hash agreement, and a model acknowledging context are separate from verified use and benefit.
+
+Repository classes cannot annotate product `terms`, `checks` or `acceptance` items. Those sections remain product validation rules. Use repository `decisions` for binding engineering boundaries. Every supplied `source_paths` list must name registered repository source files.

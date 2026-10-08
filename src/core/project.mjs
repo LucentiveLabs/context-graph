@@ -116,12 +116,14 @@ export function buildPayload(view, server, key, { date }) {
     }
     // The parent's own claims: what the team canon states about the parent and every page (definitions, then
     // constraints and terms).
-    const parentClaims = server.claimsFor(PARENT, 1000);
-    for (const c of parentClaims.filter((x) => ["definition", "constraint", "term"].includes(x.facet)).slice(0, serving.parent_claims || 40)) add(c.id.replace(/^claim:/, ""), "claims", c.label, [c.id], { facet: c.facet, source: `${String(c.artifact).replace(`artifact:${TEAM_REPO}/`, "")} ${c.selector}` });
+    // A stored projection is the retrieval corpus, not a bounded query result.
+    // Preserve eligible claims here; the request-time selector owns byte budgets.
+    const parentClaims = server.claimsFor(PARENT, Infinity);
+    for (const c of parentClaims.filter((x) => ["definition", "constraint", "term"].includes(x.facet))) add(c.id.replace(/^claim:/, ""), "claims", c.label, [c.id], { facet: c.facet, source: `${String(c.artifact).replace(`artifact:${TEAM_REPO}/`, "")} ${c.selector}` });
   } else {
     const rel = Object.entries(product.relations || {}).flatMap(([k, list]) => list.map((x) => ({ k, to: x.to })));
     for (const { k, to } of rel) add(`relation:${k}:${to}`, "map", `${product.label} ${RELATION_TEXT[k] || k} ${server.products.get(to)?.label || to}.`, [`product:${product.id}`]);
-    for (const c of server.claimsFor(product.id)) add(c.id.replace(/^claim:/, ""), "claims", c.label, [c.id], { facet: c.facet, source: `${String(c.artifact).replace(`artifact:${TEAM_REPO}/`, "")} ${c.selector}` });
+    for (const c of server.claimsFor(product.id, Infinity)) add(c.id.replace(/^claim:/, ""), "claims", c.label, [c.id], { facet: c.facet, source: `${String(c.artifact).replace(`artifact:${TEAM_REPO}/`, "")} ${c.selector}` });
     for (const { edge, concept } of server.ideasFor(product.id)) {
       // Source text remains in the owning adapter. Only opaque, eligible example
       // handles and conservative evidence kinds cross the projection boundary.

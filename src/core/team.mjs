@@ -411,8 +411,8 @@ export function checkLines(payloads, input, { lockedPaths = [], products = [] } 
     const owners = mapped.length ? mapped : products;
     if (!owners.length) continue;
     for (const p of all) {
-      if (p.scope !== "parent" && !owners.includes(p.product)) continue;
-      if (p.scope === "parent" && !owners.some((o) => familyOf(payloads, o))) continue;
+      const applicableOwners = [...new Set(owners.filter((o) => p.scope === "parent" ? familyOf(payloads, o) : o === p.product))];
+      if (!applicableOwners.length) continue;
       for (const it of p.items || []) {
         if (it.section === "terms") {
           const clean = withoutExceptions(visible, it.exceptions);
@@ -421,20 +421,20 @@ export function checkLines(payloads, input, { lockedPaths = [], products = [] } 
             const hits = clean.match(reOf(d)) || [];
             if (!hits.length) continue;
             const held = matches(it.held_paths, rel);
-            findings.push({ kind: held ? "held" : "term-drift", rule: it.handle, path: rel, line: n, found: d.text, preferred: it.preferred || [], count: hits.length, product: owners[0], ...(held ? { note: it.held_reason || "held exception" } : {}) });
+            for (const product of applicableOwners) findings.push({ kind: held ? "held" : "term-drift", rule: it.handle, path: rel, line: n, found: d.text, preferred: it.preferred || [], count: hits.length, product, ...(held ? { note: it.held_reason || "held exception" } : {}) });
           }
         }
         if (it.section === "checks") {
           for (const pat of it.patterns || []) {
             const hits = visible.match(reOf(pat)) || [];
-            if (hits.length) findings.push({ kind: it.kind === "restriction" ? "invented-restriction" : "contradiction", rule: it.handle, path: rel, line: n, found: hits[0], note: it.text, product: owners[0] });
+            if (hits.length) for (const product of applicableOwners) findings.push({ kind: it.kind === "restriction" ? "invented-restriction" : "contradiction", rule: it.handle, path: rel, line: n, found: hits[0], note: it.text, product });
           }
         }
       }
     }
   }
   const seen = new Set();
-  return findings.filter((f) => { const k = `${f.kind}|${f.found}|${f.path}|${f.line}`; if (seen.has(k)) return false; seen.add(k); return true; });
+  return findings.filter((f) => { const k = JSON.stringify([f.kind, f.rule, f.product, f.found, f.path, f.line]); if (seen.has(k)) return false; seen.add(k); return true; });
 }
 
 /**

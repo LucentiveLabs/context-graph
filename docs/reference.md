@@ -42,6 +42,8 @@ From `@lucentive-labs/context-graph/workspace`:
 | `workspaceStatus(workspace)` | Returns `{ok, revision, projections}`. |
 | `WorkspaceError` | Error with a stable `code` and a human-readable message. |
 
+Check findings retain their rule and product owner. When a path has multiple owners, a product rule belongs to that product and a parent rule applies to each family owner. Distinct owners and rules remain separate findings even when they match the same words. The delivery gate evaluates each owner's blocking or advisory mode, so an advisory co-owner cannot weaken a blocking owner's rule. Held term exceptions remain advisory for every owner.
+
 Bundle fields include `profile`, `revision`, `text`, `sha256`, `items`, `binding`, `bytes`, `budget`, `overBudget`, `requiredBytes`, `selectionAlgorithm`, and `report`. `sha256` hashes returned text; `revision` hashes the loaded file inventory. Neither is a signature or an approval. Report entries distinguish optional handles omitted by budget, missing context, and inaccessible notices with counts and reasons. The workspace client leaves `report.missing` empty: missing registered files fail loading instead. `report.excludedByClass` counts class exclusions separately from budget omissions.
 
 ### Space and omission reports

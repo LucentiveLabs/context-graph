@@ -46,7 +46,7 @@ export function globRegex(glob) {
     else if (c === "{") {
       const j = glob.indexOf("}", i);
       if (j < 0) throw new Error(`glob ${glob}: unclosed {`);
-      re += `(?:${glob.slice(i + 1, j).split(",").map(esc).join("|")})`; i = j + 1;
+      re += `(?:${glob.slice(i + 1, j).split(",").map((part) => globRegex(part).source.slice(1, -1)).join("|")})`; i = j + 1;
     } else { re += esc(c); i += 1; }
   }
   return new RegExp(`^${re}$`);
@@ -92,7 +92,7 @@ export function payloadProblems(p) {
       const a = it.applies_to || {};
       const fieldOk = { topic: strArray(it.aliases) && it.aliases.length > 0 && it.aliases.every(Boolean), absence: Array.isArray(it.patterns) && it.patterns.length > 0 && it.patterns.every((x) => typeof x?.re === "string" && x.re), phrases: strArray(it.phrases) && it.phrases.length > 0 && it.phrases.every(Boolean) }[it.requirement];
       const scopeOk = a.scope === "all-pages" || (a.scope === "product" && typeof a.product === "string" && a.product && (a.page === undefined || typeof a.page === "string"));
-      if (!fieldOk || !scopeOk) P.push(`acceptance ${it.handle} needs a known requirement with its non-empty aliases, patterns or phrases, and applies_to all-pages or a product`);
+      if (!["topic", "absence", "phrases"].includes(it.requirement) || !fieldOk || !scopeOk) P.push(`acceptance ${it.handle} needs a known requirement with its non-empty aliases, patterns or phrases, and applies_to all-pages or a product`);
     }
   }
   if (p.scope === "product") {

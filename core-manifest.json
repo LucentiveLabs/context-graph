@@ -19,7 +19,7 @@
     "src/core/records.mjs": "e6feaca56947d8a4c3bfa622dd6c017f166e4b89d03be6847a827c01dcd3325f",
     "src/core/schemas.mjs": "3c9ea732342bf2ee60c5b056d54697de3f2079e2e4dfd17c602d798c43ab6cdd",
     "src/core/serve.mjs": "900940a2b9f66495044e5348d880646aa803c76456a1ed73f68d9867f9937a75",
-    "src/core/team.mjs": "4f1f47157481b1a9465e337dea4b936f3392546a92f5fce5424cf21e8e00e564",
+    "src/core/team.mjs": "8125d7bed4b7d3533a0d13a36d5870055f9cf33880c190b00f3880107523d466",
     "src/core/validate.mjs": "42db227e5375172d148d210a87f4413ae2f942d843cfda34d2df6a04a341ffb4"
   }
 }

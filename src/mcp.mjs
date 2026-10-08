@@ -4,7 +4,7 @@ import { z } from "zod";
 import { loadWorkspace, contextFromWorkspace, checkWorkspace, workspaceStatus, WorkspaceError } from "./workspace.mjs";
 
 export function createServer(root, options = {}) {
-  const server = new McpServer({ name: "context-graph", version: "0.2.0" });
+  const server = new McpServer({ name: "context-graph", version: "0.3.0" });
   // Root and parent are startup configuration. A tool call cannot change them.
   const call = (fn) => async (args) => {
     try { return { content: [{ type: "text", text: JSON.stringify(fn(loadWorkspace(root, options), args)) }] }; }
@@ -13,7 +13,8 @@ export function createServer(root, options = {}) {
   const annotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
   server.registerTool("context", { description: "Read a team projection context bundle. Binding constraints remain complete; optional content fits a byte budget. Source capture and routine scope classification belong to the owning policy adapter.", inputSchema: {
     task: z.string().min(1).max(16000), products: z.array(z.string()).max(100).optional(),
-    classes: z.array(z.enum(["story", "governance", "library"])).min(1).max(3).optional(), budget: z.number().int().positive().max(1048576).optional(),
+    classes: z.array(z.enum(["story", "governance", "library", "orientation", "engineering"])).min(1).max(5).optional(), budget: z.number().int().positive().max(1048576).optional(),
+    repo: z.string().max(200).optional(), paths: z.array(z.string().max(1000)).max(100).optional(),
   }, annotations }, call(contextFromWorkspace));
   server.registerTool("check", { description: "Check supplied changed lines against the registered team projection rules. Reads no arbitrary file paths.", inputSchema: {
     lines: z.array(z.object({ path: z.string().max(1000), line: z.number().int().positive(), text: z.string().max(16000) })).max(10000), products: z.array(z.string()).max(100).optional(),

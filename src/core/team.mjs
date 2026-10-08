@@ -6,10 +6,10 @@
 import { createHash } from "node:crypto";
 import { posix } from "node:path";
 
-export const TEAM_CORE = "context-team-core/v3";
-export const SELECTION_ALGORITHM = "context-selection/v2";
+export const TEAM_CORE = "context-team-core/v4";
+export const SELECTION_ALGORITHM = "context-selection/v3";
 export const PAYLOAD_SCHEMA = "context-projection/v1";
-export const RECEIPT_SCHEMA = "context-receipt/v2";
+export const RECEIPT_SCHEMA = "context-receipt/v3";
 export const MACHINE_FENCE = "context-projection";
 export const BINDING_SECTIONS = ["terms", "definitions", "decisions", "acceptance"];
 export const SECTION_TITLES = {
@@ -27,6 +27,8 @@ const ORDER = ["terms", "definitions", "decisions", "acceptance", "map", "checks
 const SECTIONS = new Set(Object.keys(SECTION_TITLES));
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const HANDLE = /^ctx:[a-f0-9]{8}$/;
+export const CONTEXT_CLASSES = ["story", "governance", "library", "orientation", "engineering"];
+const relativePath = (p) => typeof p === "string" && p.length > 0 && p.length <= 1000 && !/^(?:\/|~|[A-Za-z]:)/.test(p) && !/[\u0000-\u001f\u007f\\]/.test(p) && !p.split("/").some((s) => ["", ".", ".."].includes(s));
 
 export const sha256 = (data) => createHash("sha256").update(typeof data === "string" ? Buffer.from(data, "utf8") : data).digest("hex");
 const esc = (s) => s.replace(/[.+^$()|[\]\\]/g, "\\$&");
@@ -64,7 +66,18 @@ export function payloadProblems(p) {
   if (!p.gate || !["blocking", "advisory"].includes(p.gate.mode) || (p.gate.mode === "advisory" && !DAY.test(String(p.gate.advisory_until)))) P.push("gate needs mode blocking, or advisory with advisory_until");
   if (!Array.isArray(p.items) || !p.items.every((it) => HANDLE.test(String(it?.handle)) && SECTIONS.has(it?.section) && typeof it?.text === "string" && it.text)) P.push("items must each carry a ctx handle, a known section and text");
   if (!Array.isArray(p.inaccessible)) P.push("inaccessible must be a list");
+  if (p.repository !== undefined) {
+    const r = p.repository;
+    if (!r || typeof r.id !== "string" || r.id.length > 200 || !/^[a-z0-9][a-z0-9._-]*$/.test(r.id) || !Array.isArray(r.sources) || !r.sources.length || r.sources.length > 64 || !r.sources.every((s) => relativePath(s?.path) && /^[a-f0-9]{64}$/.test(s.sha256 || ""))) P.push("repository needs an id and 1..64 confined source paths with sha256 hashes");
+    else if (new Set(r.sources.map((s) => s.path)).size !== r.sources.length) P.push("repository source paths must be unique");
+  }
   for (const it of Array.isArray(p.items) ? p.items : []) {
+    if (!it || typeof it !== "object") continue; // The shape error above owns malformed entries.
+    if (it.classes !== undefined && (!strArray(it.classes) || !it.classes.length || !it.classes.every((c) => CONTEXT_CLASSES.includes(c)))) P.push(`item ${it.handle} needs known classes`);
+    if (it.paths !== undefined && (!strArray(it.paths) || !it.paths.length || !it.paths.every(relativePath))) P.push(`item ${it.handle} needs relative path globs`);
+    const repositoryItem = Array.isArray(it.classes) && it.classes.some((c) => ["orientation", "engineering"].includes(c));
+    if ((repositoryItem || it.source_paths !== undefined) && (!strArray(it.source_paths) || !it.source_paths.length || !it.source_paths.every((path) => Array.isArray(p.repository?.sources) && p.repository.sources.some((s) => s?.path === path)))) P.push(`item ${it.handle} needs registered repository source_paths`);
+    if (repositoryItem && ["terms", "checks", "acceptance"].includes(it.section)) P.push(`item ${it.handle}: repository classes cannot declare product terms, checks or acceptance`);
     if (it.binding !== BINDING_SECTIONS.includes(it.section)) P.push(`item ${it.handle} binding must match its section`);
     if (it.section === "ideas") {
       if (it.confidence !== undefined && (typeof it.confidence !== "number" || !Number.isFinite(it.confidence) || it.confidence < 0 || it.confidence > 1)) P.push(`idea ${it.handle} confidence must be 0..1`);
@@ -260,13 +273,15 @@ const line = (it) => {
   let detail = "";
   if (it.section === "acceptance") detail = ` (scope: ${it.applies_to.scope === "all-pages" ? "all pages" : `${it.applies_to.product}, ${it.applies_to.page || "product pages"}`})`;
   if (it.section === "ideas") detail = ` (${it.relation || "relationship unknown"}; evidence: ${[...new Set((it.evidence || []).map((e) => e.kind))].join(", ") || "unknown"}${it.exclusions?.length ? `; excludes: ${it.exclusions.join("; ")}` : ""})`;
+  if (it.source_paths?.length) detail += ` (sources: ${it.source_paths.join(", ")})`;
   return `- [${it.handle}] ${it.text}${detail}`;
 };
 
-const STOP = new Set(["the", "and", "for", "with", "that", "this", "from", "into", "page", "pages", "make", "copy", "site", "edit", "edits", "work", "explain", "write", "article", "story", "ideas", "find", "describe", "product", "about"]);
-/** Task words that rank non-binding items: lower case, four letters or more, minus a few that every story task shares. */
-export const taskWords = (task) => [...new Set(String(task || "").toLowerCase().match(/[\p{L}\p{N}][\p{L}\p{N}-]{3,}/gu) || [])].filter((w) => !STOP.has(w));
-const overlap = (words, text) => { const t = String(text).toLowerCase(); return words.reduce((n, w) => n + (t.includes(w) ? 1 : 0), 0); };
+const STOP = new Set(["is", "are", "was", "be", "been", "of", "to", "in", "on", "at", "by", "an", "as", "it", "or", "we", "you", "our", "your", "its", "can", "how", "what", "which", "the", "and", "for", "with", "that", "this", "from", "into", "page", "pages", "make", "copy", "site", "edit", "edits", "work", "explain", "write", "article", "story", "ideas", "find", "describe", "product", "about"]);
+/** Exact normalized tokens retain short domain identifiers, excluding common task scaffolding. */
+const tokens = (text) => String(text || "").normalize("NFC").toLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+export const taskWords = (task) => [...new Set(tokens(task))].filter((w) => w.length >= 2 && !STOP.has(w));
+const overlap = (words, text) => { const t = new Set(tokens(text)); return words.reduce((n, w) => n + (t.has(w) ? 1 : 0), 0); };
 
 /**
  * Deterministic projection selection. Bindings retain their scope and never truncate.
@@ -277,14 +292,17 @@ const overlap = (words, text) => { const t = String(text).toLowerCase(); return 
  * then rank by evidence quality, confidence and stable handles; the product-linked
  * sections (meaning, checks, claims, open decisions) keep the order their projection
  * declares, the named product's own projection before the parent's, so a budget cut
- * never falls to handle order. This algorithm is bound into v2 receipts.
+ * never falls to handle order. This algorithm is bound into v3 receipts.
  */
-export function teamBundle(payloads0, { task = "", products = [], classes = ["story"], budget = 12288, missing = [] } = {}) {
+export function teamBundle(payloads0, { task = "", products = [], classes = ["story"], budget = 12288, missing = [], repo = null, paths = [] } = {}) {
+  if (!strArray(classes) || !classes.length || classes.some((c) => !CONTEXT_CLASSES.includes(c))) throw new Error("Unknown context class");
+  if (classes.some((c) => ["orientation", "engineering"].includes(c)) && (classes.some((c) => !["orientation", "engineering"].includes(c)) || products.length)) throw new Error("Request repository context separately from product context");
   const stable = (a, b) => a < b ? -1 : a > b ? 1 : 0;
   const payloads = uniquePayloads(payloads0).sort((a, b) => (a.scope === "parent" ? 0 : 1) - (b.scope === "parent" ? 0 : 1) || stable(a.product, b.product));
   // at: the declared position across the canonically ordered payloads, the tie-breaker of the product-linked sections.
   const items = dedupe(payloads.flatMap((p) => (p.items || []).map((it) => ({ ...it, projection: p.projection, parent: p.scope === "parent" })))).map((it, at) => ({ ...it, at }));
   const story = classes.includes("story");
+  const repositoryWork = classes.some((c) => c === "orientation" || c === "engineering");
   const wantsIdeas = story || classes.includes("library");
   // Naming a product selects its projection. For the product-linked sections (meaning, checks, claims and open
   // decisions: what the projection states about that product) its name is lexical relevance like any other task
@@ -293,8 +311,13 @@ export function teamBundle(payloads0, { task = "", products = [], classes = ["st
   const words = taskWords(task);
   const ideaWords = words.filter((word) => !productWords.has(word));
   const inScope = items.filter((it) => !(it.parent && it.section === "map" && products.length && it.about && !products.includes(it.about)))
-    .filter((it) => it.section !== "acceptance" || it.applies_to.scope === "all-pages" || products.includes(it.applies_to.product));
-  const allows = (it) => it.binding || story || (it.section === "ideas" && wantsIdeas) || (it.section === "checks" && classes.includes("governance"));
+    .filter((it) => it.section !== "acceptance" || it.applies_to.scope === "all-pages" || products.includes(it.applies_to.product))
+    .filter((it) => !repositoryWork || !paths.length || !it.paths || paths.some((path) => matches(it.paths, path)));
+  const allows = (it) => {
+    if (it.classes && !it.classes.some((c) => classes.includes(c))) return false;
+    if (repositoryWork) return !!it.classes?.some((c) => classes.includes(c)) && it.section !== "ideas";
+    return it.binding || story || (it.section === "ideas" && wantsIdeas) || (it.section === "checks" && classes.includes("governance"));
+  };
   const wanted = inScope.filter(allows);
   const score = (it) => overlap(it.section === "ideas" ? ideaWords : words, [it.text, ...(it.evidence || []).map((e) => e.summary || "")].join(" "));
   const evidenceQuality = (it) => Math.max(0, ...(it.evidence || []).map((e) => ({ "primary-excerpt": 3, "source-paraphrase": 2, "digest": 1 }[e.kind] || 0)));
@@ -308,6 +331,7 @@ export function teamBundle(payloads0, { task = "", products = [], classes = ["st
   const binding = BINDING_SECTIONS.flatMap((s) => wanted.filter((it) => it.section === s));
   const parts = ["# Context bundle (team profile)", `selection: ${SELECTION_ALGORITHM}`,
     `classes: ${classes.join(", ")}; products: ${products.length ? products.join(", ") : "none named"}`,
+    ...(repositoryWork ? [`repository: ${repo}; paths: ${paths.length ? paths.join(", ") : "whole repository"}`] : []),
     `projections: ${payloads.map((p) => `${p.projection} (${p.scope === "parent" ? "parent" : p.product}, revalidate by ${p.revalidate_by})`).join("; ")}`,
     "", "## Binding constraints (never truncated)"];
   for (const s of BINDING_SECTIONS) {
@@ -353,6 +377,7 @@ export function teamBundle(payloads0, { task = "", products = [], classes = ["st
     selectionAlgorithm: SELECTION_ALGORITHM, requiredBytes: overflow ? Buffer.byteLength(text, "utf8") : minimumBytes,
     items: [...binding, ...kept].map(strip), binding: binding.map(strip),
     report: { truncated, missing, inaccessible,
+      sources: repositoryWork ? [...new Map(payloads.flatMap((p) => p.repository?.sources || []).map((s) => [s.path, s])).values()] : [],
       ideas: { status: ideaStatus(kept, overflow), candidates: inScope.filter((it) => it.section === "ideas").length, relevant: wantsIdeas ? ideas.length : 0, selected: kept.filter((it) => it.section === "ideas").length },
       excludedByClass: inScope.filter((it) => !allows(it)).length,
       selection: { algorithm: SELECTION_ALGORITHM, optionalCandidates: rest.length, optionalSelected: kept.length, ideaBudgetFraction: 0.3 } } };
@@ -482,6 +507,7 @@ export function receiptProblems(receipt, { contextFiles = new Map(), payloadsByP
   if (!/^[a-f0-9]{64}$/.test(String(receipt.bundle_sha256))) P.push("receipt needs bundle_sha256");
   if (!strArray(receipt.products) || !receipt.products.length) P.push("receipt needs the products it covers");
   if (!strArray(receipt.classes) || !receipt.classes.includes("story")) P.push("receipt is not a story bundle (classes lack story); story delivery requires an explicit story request");
+  if (strArray(receipt.classes) && receipt.classes.some((c) => !["story", "governance", "library"].includes(c))) P.push("story receipts permit only story, governance and library classes; repository context cannot prove story delivery");
   if (!Number.isInteger(receipt.budget) || receipt.budget < 1 || receipt.budget > 1048576) P.push("receipt needs an integer budget between 1 and 1048576");
   if (typeof receipt.task !== "string") P.push("receipt needs the task text its bundle was ranked by");
   if (!Array.isArray(receipt.projections) || !receipt.projections.length) P.push("receipt names no projections");

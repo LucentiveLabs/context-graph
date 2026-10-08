@@ -52,9 +52,9 @@ test('equal-scoring ideas have stable handle order independent of projection ite
 });
 
 test('new receipts explicitly bind the selection algorithm and reject historical v1 for current delivery', () => {
-  assert.equal(RECEIPT_SCHEMA, 'context-receipt/v2');
-  assert.equal(SELECTION_ALGORITHM, 'context-selection/v2');
-  assert.match(receiptProblems({ schema: 'context-receipt/v1' })[0], /v2/);
+  assert.equal(RECEIPT_SCHEMA, 'context-receipt/v3');
+  assert.equal(SELECTION_ALGORITHM, 'context-selection/v3');
+  assert.match(receiptProblems({ schema: 'context-receipt/v1' })[0], /v3/);
   assert.ok(receiptProblems({ schema: RECEIPT_SCHEMA }).some(x => x.includes('selectionAlgorithm')));
 });
 

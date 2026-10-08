@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { projection, markdown } from './fixture.mjs';
-import { sha256, taskWords, teamBundle, payloadProblems } from '../src/core/team.mjs';
+import { sha256, taskWords, teamBundle, payloadProblems, receiptProblems, RECEIPT_SCHEMA, SELECTION_ALGORITHM } from '../src/core/team.mjs';
 import { loadWorkspace, contextFromWorkspace } from '../src/workspace.mjs';
 
 const source = '# Sample\nThe API adapter reads approved records. Capture belongs to its owner.\n';
@@ -60,6 +60,20 @@ test('repository classes cannot introduce product validation rules', (t) => {
     candidate.items[3].section = section;
     assert.ok(payloadProblems(candidate).some(x => x.includes('repository classes cannot declare')));
   }
+});
+
+test('mixed repository classes cannot bypass story constraints through a forged delivery receipt', (t) => {
+  const { p } = fixture(t);
+  for (const kind of ['orientation', 'engineering', 'invented-class']) {
+    assert.throws(() => teamBundle([p], { task: 'Explain source records', classes: ['story', kind] }));
+    const forged = { schema: RECEIPT_SCHEMA, selectionAlgorithm: SELECTION_ALGORITHM, task_id: 'synthetic-forgery',
+      profile: 'team', products: ['sample'], classes: ['story', kind], budget: 4096, task: 'Explain source records',
+      bundle_sha256: 'a'.repeat(64), projections: [{ path: 'CONTEXT.md', payload_sha256: sha256(markdown(p)) }] };
+    const problems = receiptProblems(forged, { contextFiles: new Map([['CONTEXT.md', markdown(p)]]), payloadsByPath: new Map([['CONTEXT.md', p]]) });
+    assert.ok(problems.some(x => x.includes('story receipts permit only')), problems.join('; '));
+  }
+  assert.throws(() => teamBundle([p], { classes: ['orientation'], products: ['sample'] }), /separately/);
+  assert.match(teamBundle([p], { classes: ['story', 'library'] }).text, /old record/);
 });
 
 test('repository orientation has sourced context without unrelated story bindings or library ideas', (t) => {

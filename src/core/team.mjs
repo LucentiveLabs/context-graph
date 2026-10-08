@@ -295,6 +295,8 @@ const overlap = (words, text) => { const t = new Set(tokens(text)); return words
  * never falls to handle order. This algorithm is bound into v3 receipts.
  */
 export function teamBundle(payloads0, { task = "", products = [], classes = ["story"], budget = 12288, missing = [], repo = null, paths = [] } = {}) {
+  if (!strArray(classes) || !classes.length || classes.some((c) => !CONTEXT_CLASSES.includes(c))) throw new Error("Unknown context class");
+  if (classes.some((c) => ["orientation", "engineering"].includes(c)) && (classes.some((c) => !["orientation", "engineering"].includes(c)) || products.length)) throw new Error("Request repository context separately from product context");
   const stable = (a, b) => a < b ? -1 : a > b ? 1 : 0;
   const payloads = uniquePayloads(payloads0).sort((a, b) => (a.scope === "parent" ? 0 : 1) - (b.scope === "parent" ? 0 : 1) || stable(a.product, b.product));
   // at: the declared position across the canonically ordered payloads, the tie-breaker of the product-linked sections.
@@ -505,6 +507,7 @@ export function receiptProblems(receipt, { contextFiles = new Map(), payloadsByP
   if (!/^[a-f0-9]{64}$/.test(String(receipt.bundle_sha256))) P.push("receipt needs bundle_sha256");
   if (!strArray(receipt.products) || !receipt.products.length) P.push("receipt needs the products it covers");
   if (!strArray(receipt.classes) || !receipt.classes.includes("story")) P.push("receipt is not a story bundle (classes lack story); story delivery requires an explicit story request");
+  if (strArray(receipt.classes) && receipt.classes.some((c) => !["story", "governance", "library"].includes(c))) P.push("story receipts permit only story, governance and library classes; repository context cannot prove story delivery");
   if (!Number.isInteger(receipt.budget) || receipt.budget < 1 || receipt.budget > 1048576) P.push("receipt needs an integer budget between 1 and 1048576");
   if (typeof receipt.task !== "string") P.push("receipt needs the task text its bundle was ranked by");
   if (!Array.isArray(receipt.projections) || !receipt.projections.length) P.push("receipt names no projections");

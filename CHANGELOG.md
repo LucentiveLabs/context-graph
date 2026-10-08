@@ -21,6 +21,8 @@
 
 ## Unreleased
 
+- Stored projections preserve all eligible product claims and parent definition, constraint and term claims. Query limits no longer remove existing claims when new source material arrives; request-time byte budgets and privacy filtering remain in force.
+
 - Reject inherited object-property names as acceptance requirements instead of treating them as valid rules. Brace alternatives in path globs now preserve wildcard semantics, including `docs/{*.md,*.mdx}`.
 - Shared-path checks now retain each applicable product and rule. A blocking owner cannot be masked by an earlier advisory co-owner; parent rules apply only to family owners. Consumers may receive additional findings for distinct owners or rules, while duplicate occurrences of the same finding remain collapsed.
 - A deprecated term variant may name `allowed_paths`: path globs where that variant is the accepted wording (for example a product that keeps a name the rest of the family retires). `check` gives no finding for it there while the term's other variants still apply, impact no longer counts it as an occurrence in artifacts on those paths, and the rendered CONTEXT.md lists the allowance beside the retired variant. Additive: a projection without the field behaves as before, and a reader that predates it reports the variant as drift.

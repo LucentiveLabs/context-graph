@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 (experimental)
+
+- Explicit repository orientation and engineering requests across library, CLI and MCP, with optional path selection.
+- Repo-owned baseline metadata checks source hashes and path confinement; each engineering item cites registered sources and explicitly declares its applicable classes.
+- Exact Unicode-normalized token matching includes short domain identifiers and prevents substring relevance false positives.
+- Selection/v3 and receipt/v3 identify changed bundle behavior. Upgrade readers before regenerating exports and receipts; keep frozen evaluations and historical receipts on their original pins.
+- Source-ready, installed, registry-released, actually used, and beneficial remain separate evidence states.
+
 ## 0.2.0 (experimental)
 
 - Library requests now include relevant ideas; every class retains applicable acceptance.

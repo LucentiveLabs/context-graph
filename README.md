@@ -4,7 +4,7 @@ Give an agent a small, traceable packet of project knowledge before it writes or
 
 A team can have good source material and still get generic or contradictory output: the useful decision is in one document, the current product facts in another, and the explanation behind them somewhere else. Context Graph connects those records and serves the part a task needs. It keeps instructions, documented claims, and possible inspiration visibly separate.
 
-**Status: experimental 0.2 integration release.** The source is public and MIT licensed. The October 6, 2026 baseline assessment found no npm release; check the [release workflow](https://github.com/LucentiveLabs/context-graph/actions/workflows/release.yml) for subsequent publication and verification. The source quickstart below works independently of registry availability. Working interfaces do not establish retrieval effectiveness or better writing.
+**Status: experimental 0.3 source package.** The source is public and MIT licensed. The October 8, 2026 registry check found no npm release; check the [release workflow](https://github.com/LucentiveLabs/context-graph/actions/workflows/release.yml) for subsequent publication and verification. The source quickstart below works independently of registry availability. Working interfaces do not establish retrieval effectiveness or better writing.
 
 ```mermaid
 flowchart LR
@@ -40,6 +40,7 @@ Once a registry release has been verified, the intended installation is `npm ins
 | I want to... | Start here |
 |---|---|
 | Understand the idea without graph terminology | [How it works](docs/architecture.md) |
+| Give an agent repository orientation or engineering context | [Repository context](docs/repository-context.md) |
 | Try it, check text, or connect an agent | [Getting started](docs/getting-started.md) |
 | Build an integration or understand projection fields | [Integration guide](docs/integration.md), [interface reference](docs/reference.md) |
 | Use source material to improve writing and measure value | [Writing with context](docs/writing.md) |

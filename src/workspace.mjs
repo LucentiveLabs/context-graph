@@ -2,8 +2,8 @@
 // use the graph's shared team core; source capture and clearance stay upstream.
 import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
-import { locate } from "./core/portable.mjs";
-import { parseProjection, loadInventory, uniquePayloads, teamBundle, checkLines as checkProjection, sha256 } from "./core/team.mjs";
+import { locate, relPathOk } from "./core/portable.mjs";
+import { CONTEXT_CLASSES, parseProjection, loadInventory, uniquePayloads, teamBundle, checkLines as checkProjection, sha256 } from "./core/team.mjs";
 
 export class WorkspaceError extends Error {
   constructor(code, message) { super(message); this.name = "WorkspaceError"; this.code = code; }
@@ -37,19 +37,30 @@ export function loadWorkspace(root, { parentPath = "CONTEXT.md", today = new Dat
   const payloads = uniquePayloads([...inventory.payloadsByPath.values()]);
   const stale = payloads.filter((p) => p.revalidate_by < today).map((p) => p.projection);
   if (stale.length) reject("PROJECTION_STALE", `Revalidation is required for ${stale.length} projection(s).`);
+  for (const p of payloads) for (const source of p.repository?.sources || []) {
+    if (sha256(read(directory, source.path)) !== source.sha256) reject("SOURCE_STALE", "Repository source bytes changed; review and regenerate the baseline before using it.");
+  }
   return { files, payloads, parent: inventory.parent, revision: sha256([...files].map(([p, value]) => `${p} ${sha256(value)}`).sort().join("\n")) };
 }
 
-export function contextFromWorkspace(workspace, { task, products = [], classes = ["story"], budget = 12288 } = {}) {
+export function contextFromWorkspace(workspace, { task, products = [], classes = ["story"], budget = 12288, repo = null, paths = [] } = {}) {
   if (typeof task !== "string" || !task.trim() || task.length > 16000) reject("INPUT_INVALID", "Task must contain 1 to 16000 characters.");
-  if (!Array.isArray(classes) || !classes.length || classes.some((c) => !["story", "governance", "library"].includes(c))) reject("CLASS_UNSUPPORTED", "Projection context supports story, governance and library work; routine scopes require a policy adapter.");
+  if (!Array.isArray(classes) || !classes.length || classes.some((c) => !CONTEXT_CLASSES.includes(c))) reject("CLASS_UNSUPPORTED", "Unknown context class; routine scopes require a policy adapter.");
+  const repositoryWork = classes.some((c) => ["orientation", "engineering"].includes(c));
+  if (!Array.isArray(paths) || paths.length > 100 || paths.some((p) => !relPathOk(p) || p.length > 1000)) reject("INPUT_INVALID", "Paths must be confined repository-relative paths.");
+  if (repo !== null && (typeof repo !== "string" || !/^[a-z0-9][a-z0-9._-]*$/.test(repo))) reject("INPUT_INVALID", "Repository must be a repository identifier.");
+  if (repositoryWork && (classes.some((c) => !["orientation", "engineering"].includes(c)) || products.length)) reject("INPUT_INVALID", "Request repository engineering context separately from product context.");
+  if (!repositoryWork && (repo !== null || paths.length)) reject("INPUT_INVALID", "Repository and path selectors require orientation or engineering context.");
   if (!Array.isArray(products) || products.some((p) => typeof p !== "string" || !p)) reject("INPUT_INVALID", "Products must be non-empty identifiers.");
   if (!Number.isSafeInteger(budget) || budget < 1 || budget > 1048576) reject("INPUT_INVALID", "Budget must be between 1 and 1048576 bytes.");
   const known = new Set(workspace.payloads.map((p) => p.product));
   if (products.some((p) => !known.has(p))) reject("PRODUCT_UNKNOWN", "A requested product has no registered projection.");
   const family = !products.length || products.some((id) => workspace.payloads.find((p) => p.scope !== "parent" && p.product === id)?.family !== false);
-  const selected = workspace.payloads.filter((p) => p.scope === "parent" ? family : products.includes(p.product));
-  const bundle = teamBundle(selected, { task, products, classes, budget });
+  const repository = repo ?? workspace.parent.repository?.id;
+  if (repositoryWork && !workspace.payloads.some((p) => p.repository?.id === repository)) reject("REPOSITORY_UNKNOWN", "The requested repository has no registered baseline.");
+  const selected = workspace.payloads.filter((p) => repositoryWork ? p.repository?.id === repository : p.scope === "parent" ? family : products.includes(p.product));
+  if (repositoryWork && !selected.some((p) => p.items.some((it) => it.classes?.some((c) => classes.includes(c))))) reject("BASELINE_MISSING", "No baseline items are registered for this context class.");
+  const bundle = teamBundle(selected, { task, products, classes, budget, repo: repositoryWork ? repository : null, paths });
   return { ok: true, profile: "team", revision: workspace.revision, budget, overBudget: bundle.bytes > budget, ...bundle };
 }
 
@@ -59,4 +70,4 @@ export function checkWorkspace(workspace, { lines, products = null } = {}) {
   return { ok: true, revision: workspace.revision, findings: checkProjection(workspace.payloads, { lines }, { products: products ?? [], lockedPaths: workspace.parent.gate_config.locked_files }) };
 }
 
-export const workspaceStatus = (workspace) => ({ ok: true, revision: workspace.revision, projections: workspace.payloads.map((p) => ({ handle: p.projection, product: p.product, revalidateBy: p.revalidate_by, items: p.items.length })) });
+export const workspaceStatus = (workspace) => ({ ok: true, revision: workspace.revision, projections: workspace.payloads.map((p) => ({ handle: p.projection, product: p.product, revalidateBy: p.revalidate_by, items: p.items.length, ...(p.repository ? { repository: p.repository.id, sourceFiles: p.repository.sources.length } : {}) })) });

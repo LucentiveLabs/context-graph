@@ -1,6 +1,6 @@
 {
   "name": "@lucentive-labs/context-graph",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Experimental typed context graph, projection CLI, and local read-only MCP server.",
   "type": "module",
   "license": "MIT",

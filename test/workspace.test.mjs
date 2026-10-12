@@ -72,3 +72,16 @@ test('an independent product sharing the parent product id excludes parent const
   assert.doesNotMatch(result.text, /old record is deprecated/);
   assert.deepEqual(checkWorkspace(workspace, { lines: [{ path: 'docs/guide.md', line: 1, text: 'old record' }], products: ['sample'] }).findings, []);
 });
+
+
+test('CLI and library use the same approved aliases for idea retrieval', (t) => {
+  const p = projection();
+  p.items.push({ handle: 'ctx:55555555', section: 'ideas', binding: false, text: 'Notice before reacting.', aliases: ['gap between stimulus and response'] });
+  const root = fixture(t, p);
+  const task = 'Explain a gap between stimulus and response';
+  const result = contextFromWorkspace(loadWorkspace(root), { task, products: ['sample'], classes: ['library'] });
+  assert.ok(result.items.some(x => x.handle === 'ctx:55555555'));
+  const cli = spawnSync(process.execPath, ['bin/context-graph.mjs', 'context', '--root', root, '--task', task, '--product', 'sample', '--class', 'library', '--json'], { encoding: 'utf8' });
+  assert.equal(cli.status, 0, cli.stderr);
+  assert.deepEqual(JSON.parse(cli.stdout), result);
+});

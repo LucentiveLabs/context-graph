@@ -133,7 +133,7 @@ export function buildPayload(view, server, key, { date }) {
       const evidence = refs.map((id) => ({ handle: ctxHandle(view.salt, scope, `evidence:${id}`), kind: "unknown" }));
       add(concept.id.replace(/^concept:/, ""), "ideas", `${concept.label}: ${concept.definition}`, [concept.id, edge.id, ...refs], {
         relation: edge.predicate === "documented_influence" ? "documented influence" : "candidate application",
-        confidence: edge.confidence, exclusions: concept.excludes || [], evidence,
+        confidence: edge.confidence, exclusions: concept.excludes || [], evidence, aliases: concept.aliases || [],
       });
     }
   }

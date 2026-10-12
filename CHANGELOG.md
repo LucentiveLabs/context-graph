@@ -21,6 +21,8 @@
 
 ## Unreleased
 
+- Preserve approved concept aliases in team projections and include them in idea relevance scoring. Aliases remain subject to projection clearance and leak scanning, and do not become extra rendered assertions. Core/v5 and selection/v4 identify the change; receipt/v3 shape remains unchanged and its algorithm binding rejects old selections for current delivery. Aliasless projections remain readable. This repair does not establish retrieval effectiveness or expand product scope.
+
 - Stored projections preserve all eligible product claims and parent definition, constraint and term claims. Query limits no longer remove existing claims when new source material arrives; request-time byte budgets and privacy filtering remain in force.
 
 - Reject inherited object-property names as acceptance requirements instead of treating them as valid rules. Brace alternatives in path globs now preserve wildcard semantics, including `docs/{*.md,*.mdx}`.

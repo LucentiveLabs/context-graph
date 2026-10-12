@@ -24,7 +24,7 @@ For a synthetic example, a note-taking product might connect the idea of externa
 
 ## Current selection limits
 
-Version 0.2 ranks all relevant ideas present in the requested cleared projections. It does not search every book, transcript or source record. Upstream adapters must export the full eligible candidate set. The generic projection builder refuses exports larger than 1 MiB instead of silently trimming candidates.
+The current selector ranks ideas with task-word overlap in their text, approved aliases or evidence summaries, present in the requested cleared projections. It does not search every book, transcript or source record. Upstream adapters must export the full eligible candidate set. The generic projection builder refuses exports larger than 1 MiB instead of silently trimming candidates.
 
 `library` works on its own. Applicable binding requirements stay in every class; optional ideas get a reserved share of remaining space and borrow unused space. Read `report.ideas` and `report.truncated`: a successful request can still omit useful evidence. Increase the budget when the requested idea is omitted; do not silently call an incomplete packet ready. `no-relevant-ideas` is an honest result, not evidence that the source library has nothing useful.
 

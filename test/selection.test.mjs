@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { projection, markdown } from './fixture.mjs';
-import { teamBundle, coverage, evaluateGate, receiptProblems, RECEIPT_SCHEMA, SELECTION_ALGORITHM } from '../src/core/team.mjs';
+import { teamBundle, coverage, evaluateGate, receiptProblems, RECEIPT_SCHEMA, SELECTION_ALGORITHM, payloadProblems } from '../src/core/team.mjs';
 
 const idea = (n, text) => ({ handle: `ctx:${n.toString(16).padStart(8, '0')}`, section: 'ideas', binding: false, text });
 const request = { task: 'Explain patient reflection and response', products: ['sample'], classes: ['library'] };
@@ -53,7 +53,8 @@ test('equal-scoring ideas have stable handle order independent of projection ite
 
 test('new receipts explicitly bind the selection algorithm and reject historical v1 for current delivery', () => {
   assert.equal(RECEIPT_SCHEMA, 'context-receipt/v3');
-  assert.equal(SELECTION_ALGORITHM, 'context-selection/v3');
+  assert.equal(SELECTION_ALGORITHM, 'context-selection/v4');
+  assert.ok(receiptProblems({ schema: RECEIPT_SCHEMA, selectionAlgorithm: 'context-selection/v3' }).some(x => x.includes('selectionAlgorithm')));
   assert.match(receiptProblems({ schema: 'context-receipt/v1' })[0], /v3/);
   assert.ok(receiptProblems({ schema: RECEIPT_SCHEMA }).some(x => x.includes('selectionAlgorithm')));
 });
@@ -66,19 +67,25 @@ test('projection builder exports the full eligible concept pool with conservativ
   const assertions = [];
   for (let n = 0; n < 9; n++) {
     const id = `concept:sample-${n}`;
-    nodes.set(id, { record: { id, kind: 'Concept', label: `Sample idea ${n}`, definition: 'Patient reflection supports a considered response.', excludes: ['No therapeutic claim'], examples: ['item:sample#I001', 'excerpt:sample#E001', 'item:private#I001'], state: n === 8 ? 'retired' : 'accepted' } });
+    nodes.set(id, { record: { id, kind: 'Concept', label: `Sample idea ${n}`, definition: 'Patient reflection supports a considered response.', aliases: ['deliberate pause'], excludes: ['No therapeutic claim'], examples: ['item:sample#I001', 'excerpt:sample#E001', 'item:private#I001'], state: n === 8 ? 'retired' : 'accepted' } });
     assertions.push({ record: { id: `edge:sample-${n}`, from: id, to: 'product:sample', predicate: 'candidate_application', confidence: 0.8 } });
   }
   nodes.set('item:sample#I001', { record: { id: 'item:sample#I001', kind: 'Item' } });
   nodes.set('excerpt:sample#E001', { record: { id: 'excerpt:sample#E001', kind: 'Excerpt', verified_against_sha256: 'a'.repeat(64) } });
   nodes.set('item:private#I001', { record: { id: 'item:private#I001', kind: 'Item', policy: { visibility: 'founder-private' } } });
   const view = { graph: { nodes, assertions, table: {} }, serving: { parent_product: 'sample', team_repo: 'sample', ideas_per_product: 6 }, canon: {}, snapshot: { products: [product], artifacts: [] }, exports: new Map(), salt: 'synthetic-only', policyRevision: 'synthetic', verified: () => true };
+  nodes.set('concept:private', { record: { id: 'concept:private', kind: 'Concept', label: 'Private idea', definition: 'Hidden source.', aliases: ['secret phrase'], state: 'accepted', policy: { visibility: 'founder-private' } } });
+  assertions.push({ record: { id: 'edge:private', from: 'concept:private', to: 'product:sample', predicate: 'candidate_application', confidence: 1 } });
+  view.serving.idea_aliases = { 'concept:sample-0': [' deliberate pause ', 'deliberate pause'], 'concept:private': ['secret phrase'] };
   const server = makeServer(view);
-  assert.equal(server.ideasFor('sample').length, 8);
+  assert.equal(server.ideasFor('sample').length, 9, 'the private candidate reaches the projection eligibility check');
   const { payload, basis } = buildPayload(view, server, 'sample', { date: '2026-10-06' });
   const ideas = payload.items.filter(x => x.section === 'ideas');
   assert.equal(ideas.length, 8);
+  assert.ok(!JSON.stringify(payload).includes('secret phrase'), 'private concept aliases do not cross the projection boundary');
   assert.deepEqual(ideas[0].exclusions, ['No therapeutic claim']);
+  assert.deepEqual(ideas[0].aliases, ['deliberate pause']);
+  assert.deepEqual(ideas[1].aliases, [], 'raw concept aliases are not implicitly cleared for team export');
   assert.equal(ideas[0].evidence[0].kind, 'unknown');
   assert.equal(ideas[0].evidence.length, 2);
   assert.equal(ideas[0].evidence[1].kind, 'unknown', 'hash verification alone does not establish primary-source status');
@@ -89,6 +96,18 @@ test('projection builder exports the full eligible concept pool with conservativ
   assert.match(ideas[0].evidence[0].handle, /^ctx:[a-f0-9]{8}$/);
   assert.ok(!JSON.stringify(payload).includes('item:sample'));
   assert.throws(() => renderContextMd({ ...payload, items: [{ ...ideas[0], text: 'x'.repeat(1024 * 1024) }] }), /exceeds 1 MiB/);
+  for (const aliases of ['pause', [''], ['  '], [1]]) {
+    view.serving.idea_aliases['concept:sample-0'] = aliases;
+    const malformed = buildPayload(view, makeServer(view), 'sample', { date: '2026-10-06' }).payload;
+    assert.deepEqual(malformed.items.filter(x => x.section === 'ideas')[0].aliases, []);
+    assert.deepEqual(malformed.items.filter(x => x.binding), payload.items.filter(x => x.binding));
+    assert.deepEqual(payloadProblems(malformed), []);
+    assert.ok(malformed.inaccessible.some(x => x.reason.includes('invalid idea alias')));
+  }
+  nodes.get('concept:private').record.policy.visibility = 'team';
+  const publicControl = buildPayload(view, makeServer(view), 'sample', { date: '2026-10-06' }).payload;
+  assert.equal(publicControl.items.filter(x => x.section === 'ideas').length, 9);
+  assert.ok(JSON.stringify(publicControl).includes('secret phrase'), 'control proves eligibility, rather than construction order, filtered the private alias');
 });
 
 
@@ -196,4 +215,34 @@ test('equal-relevance claims keep their declared order, the named product first,
   assert.deepEqual(kept([parent, { ...own, items: [...ownClaims].reverse() }]), ['ctx:fffffff5', 'ctx:fffffff4', 'ctx:fffffff3', 'ctx:fffffff2'], 'the projection declares the order');
   parent.items.push(claim('ctx:00000009', 'The launch date is fixed by the portfolio calendar.'));
   assert.equal(kept([parent, own])[0], 'ctx:00000009', 'a claim sharing a task word outranks equal-relevance declared order');
+});
+
+
+test('cleared aliases retrieve paraphrases without rendering them as new assertions', async () => {
+  const p = projection();
+  p.items = p.items.filter(x => x.binding);
+  p.items.push({ ...idea(40, 'Noticing before reacting.'), aliases: ['gap between stimulus and response'], relation: 'candidate application', exclusions: ['Not medical advice'] });
+  const select = task => teamBundle([p], { ...request, task });
+  const direct = select('Explain noticing before reacting');
+  const paraphrase = select('Explain a gap between stimulus and response');
+  assert.deepEqual(paraphrase.items.map(x => x.handle), direct.items.map(x => x.handle));
+  assert.equal(paraphrase.report.ideas.status, 'selected');
+  assert.match(paraphrase.text, /candidate application/);
+  assert.match(paraphrase.text, /Not medical advice/);
+  assert.doesNotMatch(paraphrase.text, /gap between stimulus and response/);
+  assert.equal(select('Explain sample astronomy').report.ideas.status, 'no-relevant-ideas');
+  assert.deepEqual(payloadProblems(p), []);
+  const without = structuredClone(p); delete without.items.at(-1).aliases;
+  assert.deepEqual(payloadProblems(without), [], 'old projections remain readable');
+  assert.equal(teamBundle([without], { ...request, task: 'Explain a gap between stimulus and response' }).report.ideas.status, 'no-relevant-ideas');
+  const { projectionLeaks, renderContextMd } = await import('../src/core/project.mjs');
+  const scanner = { scan: text => text.includes('stimulus') ? [{ id: 'uncleared-alias' }] : [] };
+  assert.ok(projectionLeaks(scanner, p, renderContextMd(p)).some(hit => hit.id === 'uncleared-alias' && hit.at.includes('aliases')));
+});
+
+test('malformed aliases fail projection validation', () => {
+  for (const aliases of ['pause', [''], ['  '], [1], ['pause', 'pause']]) {
+    const p = projection(); p.items.push({ ...idea(41, 'Noticing.'), aliases });
+    assert.ok(payloadProblems(p).some(x => x.includes('aliases')), JSON.stringify(aliases));
+  }
 });

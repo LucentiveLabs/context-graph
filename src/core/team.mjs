@@ -6,8 +6,8 @@
 import { createHash } from "node:crypto";
 import { posix } from "node:path";
 
-export const TEAM_CORE = "context-team-core/v4";
-export const SELECTION_ALGORITHM = "context-selection/v3";
+export const TEAM_CORE = "context-team-core/v5";
+export const SELECTION_ALGORITHM = "context-selection/v4";
 export const PAYLOAD_SCHEMA = "context-projection/v1";
 export const RECEIPT_SCHEMA = "context-receipt/v3";
 export const MACHINE_FENCE = "context-projection";
@@ -80,6 +80,7 @@ export function payloadProblems(p) {
     if (repositoryItem && ["terms", "checks", "acceptance"].includes(it.section)) P.push(`item ${it.handle}: repository classes cannot declare product terms, checks or acceptance`);
     if (it.binding !== BINDING_SECTIONS.includes(it.section)) P.push(`item ${it.handle} binding must match its section`);
     if (it.section === "ideas") {
+      if (it.aliases !== undefined && (!strArray(it.aliases) || it.aliases.some((alias) => !alias.trim()) || new Set(it.aliases).size !== it.aliases.length)) P.push(`idea ${it.handle} aliases must be unique non-empty strings`);
       if (it.confidence !== undefined && (typeof it.confidence !== "number" || !Number.isFinite(it.confidence) || it.confidence < 0 || it.confidence > 1)) P.push(`idea ${it.handle} confidence must be 0..1`);
       if (it.exclusions !== undefined && !strArray(it.exclusions)) P.push(`idea ${it.handle} exclusions must be strings`);
       if (it.evidence !== undefined && (!Array.isArray(it.evidence) || !it.evidence.every((e) => HANDLE.test(String(e?.handle)) && ["primary-excerpt", "source-paraphrase", "digest", "unlocated-synthesis", "unknown"].includes(e.kind) && (e.summary === undefined || typeof e.summary === "string")))) P.push(`idea ${it.handle} needs opaque evidence handles and known evidence kinds`);
@@ -319,7 +320,7 @@ export function teamBundle(payloads0, { task = "", products = [], classes = ["st
     return it.binding || story || (it.section === "ideas" && wantsIdeas) || (it.section === "checks" && classes.includes("governance"));
   };
   const wanted = inScope.filter(allows);
-  const score = (it) => overlap(it.section === "ideas" ? ideaWords : words, [it.text, ...(it.evidence || []).map((e) => e.summary || "")].join(" "));
+  const score = (it) => overlap(it.section === "ideas" ? ideaWords : words, [it.text, ...(it.section === "ideas" ? it.aliases || [] : []), ...(it.evidence || []).map((e) => e.summary || "")].join(" "));
   const evidenceQuality = (it) => Math.max(0, ...(it.evidence || []).map((e) => ({ "primary-excerpt": 3, "source-paraphrase": 2, "digest": 1 }[e.kind] || 0)));
   const rankIdeas = (a, b) => score(b) - score(a) || evidenceQuality(b) - evidenceQuality(a) || (b.confidence || 0) - (a.confidence || 0) || stable(a.handle, b.handle) || stable(a.projection, b.projection);
   // Equal relevance keeps the declared order: the named product's own items before the parent's, then the projection's.

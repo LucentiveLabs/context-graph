@@ -74,16 +74,18 @@ test('projection builder exports the full eligible concept pool with conservativ
   nodes.set('excerpt:sample#E001', { record: { id: 'excerpt:sample#E001', kind: 'Excerpt', verified_against_sha256: 'a'.repeat(64) } });
   nodes.set('item:private#I001', { record: { id: 'item:private#I001', kind: 'Item', policy: { visibility: 'founder-private' } } });
   const view = { graph: { nodes, assertions, table: {} }, serving: { parent_product: 'sample', team_repo: 'sample', ideas_per_product: 6 }, canon: {}, snapshot: { products: [product], artifacts: [] }, exports: new Map(), salt: 'synthetic-only', policyRevision: 'synthetic', verified: () => true };
-  const server = makeServer(view);
-  assert.equal(server.ideasFor('sample').length, 8);
   nodes.set('concept:private', { record: { id: 'concept:private', kind: 'Concept', label: 'Private idea', definition: 'Hidden source.', aliases: ['secret phrase'], state: 'accepted', policy: { visibility: 'founder-private' } } });
   assertions.push({ record: { id: 'edge:private', from: 'concept:private', to: 'product:sample', predicate: 'candidate_application', confidence: 1 } });
+  view.serving.idea_aliases = { 'concept:sample-0': [' deliberate pause ', 'deliberate pause'], 'concept:private': ['secret phrase'] };
+  const server = makeServer(view);
+  assert.equal(server.ideasFor('sample').length, 9, 'the private candidate reaches the projection eligibility check');
   const { payload, basis } = buildPayload(view, server, 'sample', { date: '2026-10-06' });
   const ideas = payload.items.filter(x => x.section === 'ideas');
   assert.equal(ideas.length, 8);
   assert.ok(!JSON.stringify(payload).includes('secret phrase'), 'private concept aliases do not cross the projection boundary');
   assert.deepEqual(ideas[0].exclusions, ['No therapeutic claim']);
   assert.deepEqual(ideas[0].aliases, ['deliberate pause']);
+  assert.deepEqual(ideas[1].aliases, [], 'raw concept aliases are not implicitly cleared for team export');
   assert.equal(ideas[0].evidence[0].kind, 'unknown');
   assert.equal(ideas[0].evidence.length, 2);
   assert.equal(ideas[0].evidence[1].kind, 'unknown', 'hash verification alone does not establish primary-source status');
@@ -94,6 +96,18 @@ test('projection builder exports the full eligible concept pool with conservativ
   assert.match(ideas[0].evidence[0].handle, /^ctx:[a-f0-9]{8}$/);
   assert.ok(!JSON.stringify(payload).includes('item:sample'));
   assert.throws(() => renderContextMd({ ...payload, items: [{ ...ideas[0], text: 'x'.repeat(1024 * 1024) }] }), /exceeds 1 MiB/);
+  for (const aliases of ['pause', [''], ['  '], [1]]) {
+    view.serving.idea_aliases['concept:sample-0'] = aliases;
+    const malformed = buildPayload(view, makeServer(view), 'sample', { date: '2026-10-06' }).payload;
+    assert.deepEqual(malformed.items.filter(x => x.section === 'ideas')[0].aliases, []);
+    assert.deepEqual(malformed.items.filter(x => x.binding), payload.items.filter(x => x.binding));
+    assert.deepEqual(payloadProblems(malformed), []);
+    assert.ok(malformed.inaccessible.some(x => x.reason.includes('invalid idea alias')));
+  }
+  nodes.get('concept:private').record.policy.visibility = 'team';
+  const publicControl = buildPayload(view, makeServer(view), 'sample', { date: '2026-10-06' }).payload;
+  assert.equal(publicControl.items.filter(x => x.section === 'ideas').length, 9);
+  assert.ok(JSON.stringify(publicControl).includes('secret phrase'), 'control proves eligibility, rather than construction order, filtered the private alias');
 });
 
 

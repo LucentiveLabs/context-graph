@@ -61,6 +61,17 @@ export function buildPayload(view, server, key, { date }) {
   const B = server.binding(req);
   const items = []; const basis = {}; const counts = new Map();
   const miss = (reason) => counts.set(reason, (counts.get(reason) || 0) + 1);
+  const teamAliases = (concept) => {
+    // Raw concept aliases may be private. Only the adapter's reviewed team
+    // serving configuration can opt wording into an exported projection.
+    const aliases = Object.hasOwn(serving.idea_aliases || {}, concept.id) ? serving.idea_aliases[concept.id] : undefined;
+    if (aliases === undefined) return [];
+    if (!Array.isArray(aliases) || aliases.some((x) => typeof x !== "string" || !x.trim())) {
+      miss("invalid idea alias configuration(s); retrieval uses idea text only");
+      return [];
+    }
+    return [...new Set(aliases.map((x) => x.trim()))];
+  };
   const recHash = (ref) => { const r = server.recAny(server.recordRef(ref)); return r ? canonicalHash(r) : null; };
   const add = (itemKey, section, text, refs, extra = {}) => {
     const handle = ctxHandle(view.salt, scope, `${section}:${itemKey}`);
@@ -133,7 +144,7 @@ export function buildPayload(view, server, key, { date }) {
       const evidence = refs.map((id) => ({ handle: ctxHandle(view.salt, scope, `evidence:${id}`), kind: "unknown" }));
       add(concept.id.replace(/^concept:/, ""), "ideas", `${concept.label}: ${concept.definition}`, [concept.id, edge.id, ...refs], {
         relation: edge.predicate === "documented_influence" ? "documented influence" : "candidate application",
-        confidence: edge.confidence, exclusions: concept.excludes || [], evidence, aliases: concept.aliases || [],
+        confidence: edge.confidence, exclusions: concept.excludes || [], evidence, aliases: teamAliases(concept),
       });
     }
   }

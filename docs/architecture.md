@@ -58,4 +58,6 @@ The compatibility identifiers `origin-graph/v1` and `urn:origin:graph:*` name wi
 | Product truth, editorial judgment and publication | Product/content owner |
 | Retrieval and writing-quality evaluation | Application team, using its actual tasks |
 
+The four roles behind this table (authority, owner, checker, reader) and the order in which their words win are described in [Roles](roles.md).
+
 Start with the [projection client](getting-started.md). Adopt lower-level adapters only when your workflow needs them.

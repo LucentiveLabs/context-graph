@@ -21,6 +21,8 @@
 
 ## Unreleased
 
+- Documentation: [Roles](docs/roles.md) names the four generic roles a workspace fills (authority, owner, checker, reader), their truth order, the product context page kinds, and the identifiers that still carry one deployment's shape (`FounderAnchor`, `founder-private`, `founder-note`, `pillar_*`) with their planned generic names. No behavior change.
+
 - Export explicitly configured team idea aliases and include them in relevance scoring; raw concept aliases stay private by default. Aliases remain subject to projection clearance and leak scanning, and do not become extra rendered assertions. Core/v5 and selection/v4 identify the change; receipt/v3 shape remains unchanged and its algorithm binding rejects old selections for current delivery. Aliasless projections remain readable. This repair does not establish retrieval effectiveness or expand product scope.
 
 - Stored projections preserve all eligible product claims and parent definition, constraint and term claims. Query limits no longer remove existing claims when new source material arrives; request-time byte budgets and privacy filtering remain in force.

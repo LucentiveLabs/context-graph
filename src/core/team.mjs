@@ -246,8 +246,9 @@ function resolveImport(from, spec, files) {
 export const DOCS_ROUTE = "src/app/docs/[[...slug]]/page.tsx";
 /**
  * A page: its entry file, the layouts above a Next.js route, and every file they import that the gate read. A docs
- * page written in MDX under apps/<app>/content renders through that app's catch-all docs route, so the route page and
- * its layouts belong to the page as well; the MDX file stays the entry.
+ * page written in Markdown or MDX under apps/<app>/content/docs renders through that app's catch-all docs route, so
+ * the route page and its layouts belong to the page as well; the content file stays the entry. Other content
+ * directories and other route shapes keep the entry-only closure (fail closed).
  */
 export function pageClosure(entry, files) {
   const seen = new Set([entry]); const queue = [entry];
@@ -259,7 +260,7 @@ export function pageClosure(entry, files) {
     for (let i = 0; i <= dirs.length; i += 1) for (const name of ["layout.tsx", "layout.ts", "template.tsx"]) add([m[1], ...dirs.slice(0, i), name].join("/"));
   };
   route(entry);
-  const doc = /^(apps\/[^/]+)\/content\/.+\.mdx?$/.exec(entry);
+  const doc = /^(apps\/[^/]+)\/content\/docs\/.+\.mdx?$/.exec(entry);
   if (doc && files.has(`${doc[1]}/${DOCS_ROUTE}`)) { add(`${doc[1]}/${DOCS_ROUTE}`); route(`${doc[1]}/${DOCS_ROUTE}`); }
   while (queue.length) {
     const f = queue.shift();

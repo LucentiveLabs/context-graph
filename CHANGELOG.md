@@ -21,6 +21,8 @@
 
 ## Unreleased
 
+- A docs page written in MDX under `apps/<app>/content` renders through that app's catch-all docs route (`src/app/docs/[[...slug]]/page.tsx`, the fumadocs layout). Its page closure now includes the route page and its layouts, while the MDX file stays the entry, so page-level must-appear items held by the docs chrome count for every docs page and public-copy review keeps the MDX text. Apps without that route keep the previous closure.
+
 - Export explicitly configured team idea aliases and include them in relevance scoring; raw concept aliases stay private by default. Aliases remain subject to projection clearance and leak scanning, and do not become extra rendered assertions. Core/v5 and selection/v4 identify the change; receipt/v3 shape remains unchanged and its algorithm binding rejects old selections for current delivery. Aliasless projections remain readable. This repair does not establish retrieval effectiveness or expand product scope.
 
 - Stored projections preserve all eligible product claims and parent definition, constraint and term claims. Query limits no longer remove existing claims when new source material arrives; request-time byte budgets and privacy filtering remain in force.

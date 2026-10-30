@@ -242,14 +242,25 @@ function resolveImport(from, spec, files) {
   for (const c of [base, `${base}.ts`, `${base}.tsx`, `${base}.js`, `${base}.mjs`, `${base}.json`, `${base}.md`, `${base}.mdx`, `${base}/index.ts`, `${base}/index.tsx`]) if (files.has(c)) return c;
   return null;
 }
-/** A page: its entry file, the layouts above a Next.js route, and every file they import that the gate read. */
+/** The catch-all docs route that renders an app's content MDX (the fumadocs layout). */
+export const DOCS_ROUTE = "src/app/docs/[[...slug]]/page.tsx";
+/**
+ * A page: its entry file, the layouts above a Next.js route, and every file they import that the gate read. A docs
+ * page written in MDX under apps/<app>/content renders through that app's catch-all docs route, so the route page and
+ * its layouts belong to the page as well; the MDX file stays the entry.
+ */
 export function pageClosure(entry, files) {
   const seen = new Set([entry]); const queue = [entry];
-  const m = /^(apps\/[^/]+\/src\/app)\/(.*)$/.exec(entry);
-  if (m) {
+  const add = (p) => { if (files.has(p) && !seen.has(p)) { seen.add(p); queue.push(p); } };
+  const route = (page) => {
+    const m = /^(apps\/[^/]+\/src\/app)\/(.*)$/.exec(page);
+    if (!m) return;
     const dirs = m[2].split("/").slice(0, -1);
-    for (let i = 0; i <= dirs.length; i += 1) for (const name of ["layout.tsx", "layout.ts", "template.tsx"]) { const p = [m[1], ...dirs.slice(0, i), name].join("/"); if (files.has(p) && !seen.has(p)) { seen.add(p); queue.push(p); } }
-  }
+    for (let i = 0; i <= dirs.length; i += 1) for (const name of ["layout.tsx", "layout.ts", "template.tsx"]) add([m[1], ...dirs.slice(0, i), name].join("/"));
+  };
+  route(entry);
+  const doc = /^(apps\/[^/]+)\/content\/.+\.mdx?$/.exec(entry);
+  if (doc && files.has(`${doc[1]}/${DOCS_ROUTE}`)) { add(`${doc[1]}/${DOCS_ROUTE}`); route(`${doc[1]}/${DOCS_ROUTE}`); }
   while (queue.length) {
     const f = queue.shift();
     // Imports are read from the code without its comments, so a commented-out import adds nothing to the page.

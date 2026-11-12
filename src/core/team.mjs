@@ -248,22 +248,23 @@ const NEXT_PAGE = /(?:^|\/)app\/(?:.+\/)?page\.(?:tsx|ts|jsx|js)$/;
 const NAVIGATION_HELPER = "(redirect|permanentRedirect)";
 const REDIRECT_ONLY = new RegExp(
   `^import\\s*\\{\\s*${NAVIGATION_HELPER}(?:\\s*,\\s*${NAVIGATION_HELPER})?\\s*,?\\s*\\}\\s*from\\s*(["'])next/navigation\\3\\s*;?\\s*`
-  + `export\\s+default\\s+(?:async\\s+)?function(?:\\s+([A-Za-z_$][\\w$]*))?\\s*\\(\\s*\\)\\s*(?::\\s*(?:never|void|Promise<(?:never|void)>)\\s*)?`
-  + `\\{\\s*(?:return\\s+)?${NAVIGATION_HELPER}\\(\\s*(?:"[^"\\\\]*"|'[^'\\\\]*'|\`[^\`\\\\$]*\`)\\s*\\)\\s*;?\\s*\\}\\s*$`,
+  + `export\\s+default\\s+(?:async[ \\t]+)?function(?:\\s+([A-Za-z_$][\\w$]*))?\\s*\\(\\s*\\)\\s*(?::\\s*(?:never|void|Promise<(?:never|void)>)\\s*)?`
+  + `\\{\\s*(?:return[ \\t]+)?${NAVIGATION_HELPER}\\(\\s*(?:"[^"\\\\]*"|'[^'\\\\]*'|\`[^\`\\\\$]*\`)\\s*\\)\\s*;?\\s*\\}\\s*$`,
 );
 const LINE_END = /[\n\r\u2028\u2029]/;
 /**
  * A whole module's code without its comments, or null when it holds anything this narrow reader cannot follow for
- * certain: a string or template literal that spans a line or never closes, a template literal with a placeholder, a bare slash (division
- * or a regular expression), or an unclosed block comment. Every JavaScript line terminator ends a line comment. Null
- * keeps the entry a page.
+ * certain: a string or template literal that spans a line or never closes, a template literal with a placeholder, a
+ * bare slash (division or a regular expression), or an unclosed block comment. Every JavaScript line terminator ends a
+ * line comment, and a block comment that spans a line stays a line break, so automatic semicolon insertion after
+ * return or async is still visible to the matcher, which allows only spaces and tabs there. Null keeps the entry a page.
  */
 function codeWithoutComments(source) {
   let out = "";
   for (let i = 0; i < source.length; i += 1) {
     const c = source[i]; const n = source[i + 1];
     if (c === "/" && n === "/") { while (i < source.length && !LINE_END.test(source[i])) i += 1; out += "\n"; continue; }
-    if (c === "/" && n === "*") { const end = source.indexOf("*/", i + 2); if (end < 0) return null; i = end + 1; out += " "; continue; }
+    if (c === "/" && n === "*") { const end = source.indexOf("*/", i + 2); if (end < 0) return null; out += LINE_END.test(source.slice(i + 2, end)) ? "\n" : " "; i = end + 1; continue; }
     if (c === "/") return null;
     if (c === '"' || c === "'" || c === "`") {
       let j = i + 1;
@@ -521,6 +522,9 @@ export function coverage(payloads, { products = [], files = new Map(), neverPage
     const entries = [...files.keys()].filter((rel) => matches(own.paths.entries, rel) && !matches(neverPages, rel) && productsForPath(payloads, rel).includes(product)).sort();
     const pages = entries.filter((e) => !isRedirectOnlyPage(e, files.get(e))).map((e) => ({ entry: e, closure: pageClosure(e, files), landing: matches(own.paths.landing, e) }));
     const touched = pages.filter((pg) => !changedSet || [...pg.closure].some((f) => changedSet.has(f)));
+    // Entries that only redirect: no page, but a change that makes one still owes the items it may have carried.
+    const stubs = entries.filter((e) => !pages.some((pg) => pg.entry === e));
+    const stubChanged = !changedSet || stubs.some((e) => changedSet.has(e));
     const parents = own.family === false ? [] : all.filter((p) => p.scope === "parent");
     const items = [...parents, own].flatMap((p) => (p.items || []).filter((it) => it.section === "acceptance" && (it.applies_to?.scope === "all-pages" || it.applies_to?.product === product)));
     const judge = (it, text) => {
@@ -532,7 +536,14 @@ export function coverage(payloads, { products = [], files = new Map(), neverPage
     for (const it of dedupe(items)) {
       const base = { product, rule: it.handle, text: it.text };
       if (it.applies_to.scope === "all-pages") for (const pg of touched) { const [ok, detail] = judge(it, textOf([pg])); results.push({ ...base, page: pg.entry, ok, detail }); }
-      else if (it.applies_to.page === "landing") for (const pg of touched.filter((x) => x.landing)) { const [ok, detail] = judge(it, textOf([pg])); results.push({ ...base, page: pg.entry, ok, detail }); }
+      else if (it.applies_to.page === "landing") {
+        for (const pg of touched.filter((x) => x.landing)) { const [ok, detail] = judge(it, textOf([pg])); results.push({ ...base, page: pg.entry, ok, detail }); }
+        // A landing that only redirects shows nothing, so its item fails rather than going unjudged.
+        const landingStubs = stubs.filter((e) => matches(own.paths.landing, e));
+        if (!pages.some((pg) => pg.landing) && landingStubs.length && (touched.length || (stubChanged && (!changedSet || landingStubs.some((e) => changedSet.has(e)))))) {
+          for (const e of landingStubs) results.push({ ...base, page: e, ok: false, detail: "landing page only redirects, so it shows no text" });
+        }
+      }
       else if (it.applies_to.page) {
         // A named page is an exact repository-relative entry path. An unknown
         // selector must not silently widen the obligation to the page union.
@@ -541,8 +552,8 @@ export function coverage(payloads, { products = [], files = new Map(), neverPage
         if (!target && (!changedSet || touched.length || changedSet.has(it.applies_to.page))) results.push({ ...base, page: it.applies_to.page, ok: false, detail: entries.includes(it.applies_to.page) ? "acceptance page only redirects, so it shows no text" : "acceptance page is not a known product page entry" });
         else if (target && touched.includes(target)) { const [ok, detail] = judge(it, textOf([target])); results.push({ ...base, page: target.entry, ok, detail }); }
       }
-      // A full evaluation still judges a product item when every entry is a redirect stub: no page shows it.
-      else if (touched.length || (!changedSet && entries.length)) { const [ok, detail] = judge(it, textOf(pages)); results.push({ ...base, page: "(all pages of the product)", ok, detail }); }
+      // A product item is judged again when a change makes a stub, and under full evaluation even when every entry is one.
+      else if (touched.length || (entries.length && stubChanged)) { const [ok, detail] = judge(it, textOf(pages)); results.push({ ...base, page: "(all pages of the product)", ok, detail }); }
     }
     if (changedSet && !entries.length && [...changedSet].some((rel) => productsForPath(payloads, rel).includes(product) && isPagePath(payloads, rel))) results.push({ product, rule: null, text: "Coverage needs the product's page entries.", ok: false, detail: "page files changed, but no page entry of this product was found" });
   }

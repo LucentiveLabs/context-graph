@@ -136,3 +136,45 @@ test('a named page that became a redirect stub, and a fully evaluated product of
   assert.equal(full.length, 1);
   assert.equal(full[0].ok, false);
 });
+
+test('a line break after return or async, also inside a comment, is an early return and keeps the entry a page', () => {
+  const page = 'apps/site/src/app/about/page.tsx';
+  const head = 'import { redirect } from "next/navigation";\n';
+  for (const body of [
+    'export default function P() { return\n redirect("/"); }',
+    'export default function P() { return // note\n redirect("/"); }',
+    'export default function P() { return /*\n*/ redirect("/"); }',
+    'export default function P() { return\r\n redirect("/"); }',
+    'export default function P() { return\u2028 redirect("/"); }',
+    'export default async\nfunction P() { redirect("/"); }',
+    'export default async /*\n*/ function P() { redirect("/"); }',
+  ]) {
+    assert.equal(isRedirectOnlyPage(page, head + body), false, JSON.stringify(body));
+  }
+  for (const body of [
+    'export default function P() { return redirect("/"); }',
+    'export default function P() { return /* moved */ redirect("/"); }',
+    'export default async function P() {\n  return redirect("/");\n}',
+    'export default function P() {\n  /* moved\n     home */\n  redirect("/");\n}',
+  ]) {
+    assert.equal(isRedirectOnlyPage(page, head + body), true, JSON.stringify(body));
+  }
+});
+
+test('a change that turns a page into a stub, or a landing that only redirects, still owes the items', () => {
+  const stub = 'import { redirect } from "next/navigation";\nexport default function P() { redirect("/elsewhere"); }';
+  const union = { ...own, items: [{ handle: 'ctx:00000044', section: 'acceptance', binding: true, text: 'The product names IAS somewhere.', requirement: 'topic', aliases: ['IAS'], applies_to: { scope: 'product', product: 'site' } }] };
+  const f = files({ 'apps/site/src/app/about/page.tsx': stub, 'apps/site/src/app/plain/page.tsx': 'export default function Plain() { return <main>A plain page.</main>; }' });
+  const rows = coverage([union], { products: ['site'], files: f, changed: ['apps/site/src/app/about/page.tsx'] });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].ok, false, 'the remaining pages are judged again once the page that named IAS became a stub');
+
+  const landing = { ...own, items: [{ handle: 'ctx:00000045', section: 'acceptance', binding: true, text: 'The landing page names IAS.', requirement: 'topic', aliases: ['IAS'], applies_to: { scope: 'product', product: 'site', page: 'landing' } }] };
+  const g = files({ 'apps/site/src/app/page.tsx': stub, 'apps/site/src/app/plain/page.tsx': 'export default function Plain() { return <main>A plain page.</main>; }' });
+  for (const changed of [null, ['apps/site/src/app/page.tsx'], ['apps/site/src/app/plain/page.tsx']]) {
+    const out = coverage([landing], { products: ['site'], files: g, changed });
+    assert.equal(out.length, 1, JSON.stringify(changed));
+    assert.equal(out[0].ok, false);
+    assert.match(out[0].detail, /landing page only redirects/);
+  }
+});

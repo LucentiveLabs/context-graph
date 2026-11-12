@@ -244,6 +244,27 @@ function resolveImport(from, spec, files) {
 }
 /** The catch-all docs route that renders an app's content MDX (the fumadocs layout). */
 export const DOCS_ROUTE = "src/app/docs/[[...slug]]/page.tsx";
+const NEXT_PAGE = /(?:^|\/)app\/(?:.+\/)?page\.(?:tsx|ts|jsx|js)$/;
+const REDIRECT_CALL = "(?:redirect|permanentRedirect)";
+const LITERAL = "(?:\"[^\"\\\\\\n]*\"|'[^'\\\\\\n]*'|`[^`\\\\$]*`)";
+const REDIRECT_ONLY = new RegExp(
+  `^import\\s*\\{\\s*${REDIRECT_CALL}(?:\\s*,\\s*${REDIRECT_CALL})?\\s*,?\\s*\\}\\s*from\\s*["']next/navigation["']\\s*;?\\s*`
+  + `export\\s+default\\s+(?:async\\s+)?function\\s*[\\w$]*\\s*\\(\\s*\\)\\s*(?::\\s*(?:never|void|Promise<(?:never|void)>)\\s*)?`
+  + `\\{\\s*(?:return\\s+)?${REDIRECT_CALL}\\(\\s*${LITERAL}\\s*\\)\\s*;?\\s*\\}\\s*$`,
+);
+/**
+ * A Next.js app route page that only sends the visitor elsewhere: apart from comments, its whole module is one import
+ * of redirect or permanentRedirect from next/navigation and a default export whose body is one unconditional call of
+ * it with a literal target. Next answers such a route with the redirect itself, so neither the page nor its layouts
+ * show any text, and coverage has no page to judge. Anything more (a condition, another import, a directive, another
+ * export, a computed target) keeps the entry a page (fail closed).
+ */
+export function isRedirectOnlyPage(rel, source) {
+  if (!NEXT_PAGE.test(rel) || typeof source !== "string") return false;
+  const state = { inBlock: false };
+  const code = source.split("\n").map((l) => stripComments(l, state)).join("\n");
+  return REDIRECT_ONLY.test(code.trim());
+}
 /**
  * A page: its entry file, the layouts above a Next.js route, and every file they import that the gate read. A docs
  * page written in Markdown or MDX under apps/<app>/content/docs renders through that app's catch-all docs route, so
@@ -456,7 +477,8 @@ export function checkLines(payloads, input, { lockedPaths = [], products = [] } 
  * Every-page items hold on each page the change touches (a page is touched when the change edits a file of its
  * closure). Landing items hold on the product's landing page when the change touches it. Product items without a page
  * hold over the union of the product's pages when the change touches any of them. The parent's every-page items bind
- * family products only. changed: null evaluates every page.
+ * family products only. An entry that only redirects (isRedirectOnlyPage) shows nothing and is not judged as a page.
+ * changed: null evaluates every page.
  */
 export function coverage(payloads, { products = [], files = new Map(), neverPages = [], changed = null } = {}) {
   const results = []; const changedSet = changed ? new Set(changed) : null; const all = uniquePayloads(payloads);
@@ -466,7 +488,7 @@ export function coverage(payloads, { products = [], files = new Map(), neverPage
     const own = all.find((p) => p.scope !== "parent" && p.product === product);
     if (!own) { results.push({ product, ok: false, missing_projection: true, text: "A projection must exist for the product.", detail: "no CONTEXT.md projection for this product" }); continue; }
     const entries = [...files.keys()].filter((rel) => matches(own.paths.entries, rel) && !matches(neverPages, rel) && productsForPath(payloads, rel).includes(product)).sort();
-    const pages = entries.map((e) => ({ entry: e, closure: pageClosure(e, files), landing: matches(own.paths.landing, e) }));
+    const pages = entries.filter((e) => !isRedirectOnlyPage(e, files.get(e))).map((e) => ({ entry: e, closure: pageClosure(e, files), landing: matches(own.paths.landing, e) }));
     const touched = pages.filter((pg) => !changedSet || [...pg.closure].some((f) => changedSet.has(f)));
     const parents = own.family === false ? [] : all.filter((p) => p.scope === "parent");
     const items = [...parents, own].flatMap((p) => (p.items || []).filter((it) => it.section === "acceptance" && (it.applies_to?.scope === "all-pages" || it.applies_to?.product === product)));
@@ -489,17 +511,17 @@ export function coverage(payloads, { products = [], files = new Map(), neverPage
       }
       else if (touched.length) { const [ok, detail] = judge(it, textOf(pages)); results.push({ ...base, page: "(all pages of the product)", ok, detail }); }
     }
-    if (changedSet && !pages.length && [...changedSet].some((rel) => productsForPath(payloads, rel).includes(product) && isPagePath(payloads, rel))) results.push({ product, rule: null, text: "Coverage needs the product's page entries.", ok: false, detail: "page files changed, but no page entry of this product was found" });
+    if (changedSet && !entries.length && [...changedSet].some((rel) => productsForPath(payloads, rel).includes(product) && isPagePath(payloads, rel))) results.push({ product, rule: null, text: "Coverage needs the product's page entries.", ok: false, detail: "page files changed, but no page entry of this product was found" });
   }
   return results;
 }
 
-/** Products whose pages (entry plus layouts plus imports, at the given files) include a changed file. */
+/** Products whose pages (entry plus layouts plus imports, at the given files; redirect-only entries are no page) include a changed file. */
 export function productsAffected(payloads, { files = new Map(), changed = [], neverPages = [] } = {}) {
   const changedSet = new Set(changed); const out = new Set();
   for (const p of uniquePayloads(payloads)) {
     if (p.scope === "parent") continue;
-    for (const e of [...files.keys()].filter((rel) => matches(p.paths.entries, rel) && !matches(neverPages, rel) && productsForPath(payloads, rel).includes(p.product))) {
+    for (const e of [...files.keys()].filter((rel) => matches(p.paths.entries, rel) && !matches(neverPages, rel) && productsForPath(payloads, rel).includes(p.product) && !isRedirectOnlyPage(rel, files.get(rel)))) {
       if ([...pageClosure(e, files)].some((f) => changedSet.has(f))) { out.add(p.product); break; }
     }
   }

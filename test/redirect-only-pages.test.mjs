@@ -77,3 +77,62 @@ test('a change that reaches only redirect-only entries touches no page of the pr
   const only = files({ 'apps/site/src/app/about/page.tsx': f.get('apps/site/src/app/about/page.tsx') });
   assert.deepEqual(coverage([own], { products: ['site'], files: only, changed: ['apps/site/src/app/about/page.tsx'] }), []);
 });
+
+test('a comment never hides live code: every JavaScript line terminator ends a line comment', () => {
+  const page = 'apps/site/src/app/about/page.tsx';
+  for (const end of ['\r', '\u2028', '\u2029']) {
+    const source = `import { redirect } from "next/navigation";\nexport default function P() { // note${end} return <main>Visible text</main>;\n redirect("/"); }`;
+    assert.equal(isRedirectOnlyPage(page, source), false, JSON.stringify(end));
+  }
+  // A CRLF file is still a redirect.
+  assert.equal(isRedirectOnlyPage(page, 'import { redirect } from "next/navigation";\r\n// moved\r\nexport default function P() {\r\n  redirect("/");\r\n}\r\n'), true);
+});
+
+test('multi-line, interpolated or escaped literals and bare slashes keep the entry a page', () => {
+  const page = 'apps/site/src/app/about/page.tsx';
+  for (const source of [
+    'import { redirect } from "next/navigation";\nexport default function P() { redirect(`/labs/\n/* ${slug} */`); }',
+    'import { redirect } from "next/navigation";\nexport default function P() { redirect(`/labs/\n`); }',
+    'import { redirect } from "next/navigation";\nexport default function P() { redirect("/la\\"bs"); }',
+    'import { redirect } from "next/navigation";\nexport default function P() { redirect("/" + "labs"); }',
+    'import { redirect } from "next/navigation";\nexport default function P() { redirect("/"); } /* unclosed',
+    'import { redirect } from "next/navigation";\nexport default function P() { redirect("/" / 1); }',
+  ]) {
+    assert.equal(isRedirectOnlyPage(page, source), false, source);
+  }
+});
+
+test('the call must be the helper the module imported from next/navigation, unshadowed', () => {
+  const page = 'apps/site/src/app/about/page.tsx';
+  for (const source of [
+    'import { permanentRedirect } from "next/navigation";\nexport default function P() { redirect("/"); }',
+    'import { redirect } from "next/navigation";\nexport default function redirect() { redirect("/"); }',
+    'import { redirect, redirect } from "next/navigation";\nexport default function P() { redirect("/"); }',
+    'import { redirect } from "next/navigation\';\nexport default function P() { redirect("/"); }',
+    'import { redirect as go } from "next/navigation";\nexport default function P() { go("/"); }',
+    'import { redirect } from "next/navigation";\nexport default functionP() { redirect("/"); }',
+    'import { redirect } from "next/navigation";\nexport default () => redirect("/");',
+    'import { redirect } from "next/navigation";\nexport default function P(props) { redirect("/"); }',
+  ]) {
+    assert.equal(isRedirectOnlyPage(page, source), false, source);
+  }
+  assert.equal(isRedirectOnlyPage(page, 'import { redirect, permanentRedirect } from "next/navigation";\nexport default function P() { permanentRedirect("/"); }'), true);
+  assert.equal(isRedirectOnlyPage(42, 'import { redirect } from "next/navigation";\nexport default function P() { redirect("/"); }'), false);
+});
+
+test('a named page that became a redirect stub, and a fully evaluated product of stubs, still owe their items', () => {
+  const stub = 'import { redirect } from "next/navigation";\nexport default function About() { redirect("/"); }';
+  const named = { ...own, items: [{ handle: 'ctx:00000042', section: 'acceptance', binding: true, text: 'The about page names IAS.', requirement: 'topic', aliases: ['IAS'], applies_to: { scope: 'product', product: 'site', page: 'apps/site/src/app/about/page.tsx' } }] };
+  const f = files({ 'apps/site/src/app/about/page.tsx': stub, 'apps/site/src/app/page.tsx': 'export default function Home() { return <main>Home</main>; }' });
+  const rows = coverage([named], { products: ['site'], files: f, changed: ['apps/site/src/app/about/page.tsx'] });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].ok, false);
+  assert.match(rows[0].detail, /only redirects/);
+  assert.equal(coverage([named], { products: ['site'], files: f, changed: null })[0].ok, false);
+
+  const union = { ...own, items: [{ handle: 'ctx:00000043', section: 'acceptance', binding: true, text: 'The product names IAS somewhere.', requirement: 'topic', aliases: ['IAS'], applies_to: { scope: 'product', product: 'site' } }] };
+  const stubs = files({ 'apps/site/src/app/about/page.tsx': stub });
+  const full = coverage([union], { products: ['site'], files: stubs, changed: null });
+  assert.equal(full.length, 1);
+  assert.equal(full[0].ok, false);
+});

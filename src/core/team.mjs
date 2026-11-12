@@ -245,25 +245,56 @@ function resolveImport(from, spec, files) {
 /** The catch-all docs route that renders an app's content MDX (the fumadocs layout). */
 export const DOCS_ROUTE = "src/app/docs/[[...slug]]/page.tsx";
 const NEXT_PAGE = /(?:^|\/)app\/(?:.+\/)?page\.(?:tsx|ts|jsx|js)$/;
-const REDIRECT_CALL = "(?:redirect|permanentRedirect)";
-const LITERAL = "(?:\"[^\"\\\\\\n]*\"|'[^'\\\\\\n]*'|`[^`\\\\$]*`)";
+const NAVIGATION_HELPER = "(redirect|permanentRedirect)";
 const REDIRECT_ONLY = new RegExp(
-  `^import\\s*\\{\\s*${REDIRECT_CALL}(?:\\s*,\\s*${REDIRECT_CALL})?\\s*,?\\s*\\}\\s*from\\s*["']next/navigation["']\\s*;?\\s*`
-  + `export\\s+default\\s+(?:async\\s+)?function\\s*[\\w$]*\\s*\\(\\s*\\)\\s*(?::\\s*(?:never|void|Promise<(?:never|void)>)\\s*)?`
-  + `\\{\\s*(?:return\\s+)?${REDIRECT_CALL}\\(\\s*${LITERAL}\\s*\\)\\s*;?\\s*\\}\\s*$`,
+  `^import\\s*\\{\\s*${NAVIGATION_HELPER}(?:\\s*,\\s*${NAVIGATION_HELPER})?\\s*,?\\s*\\}\\s*from\\s*(["'])next/navigation\\3\\s*;?\\s*`
+  + `export\\s+default\\s+(?:async\\s+)?function(?:\\s+([A-Za-z_$][\\w$]*))?\\s*\\(\\s*\\)\\s*(?::\\s*(?:never|void|Promise<(?:never|void)>)\\s*)?`
+  + `\\{\\s*(?:return\\s+)?${NAVIGATION_HELPER}\\(\\s*(?:"[^"\\\\]*"|'[^'\\\\]*'|\`[^\`\\\\$]*\`)\\s*\\)\\s*;?\\s*\\}\\s*$`,
 );
+const LINE_END = /[\n\r\u2028\u2029]/;
+/**
+ * A whole module's code without its comments, or null when it holds anything this narrow reader cannot follow for
+ * certain: a string or template literal that spans a line or never closes, a template literal with a placeholder, a bare slash (division
+ * or a regular expression), or an unclosed block comment. Every JavaScript line terminator ends a line comment. Null
+ * keeps the entry a page.
+ */
+function codeWithoutComments(source) {
+  let out = "";
+  for (let i = 0; i < source.length; i += 1) {
+    const c = source[i]; const n = source[i + 1];
+    if (c === "/" && n === "/") { while (i < source.length && !LINE_END.test(source[i])) i += 1; out += "\n"; continue; }
+    if (c === "/" && n === "*") { const end = source.indexOf("*/", i + 2); if (end < 0) return null; i = end + 1; out += " "; continue; }
+    if (c === "/") return null;
+    if (c === '"' || c === "'" || c === "`") {
+      let j = i + 1;
+      for (; j < source.length && source[j] !== c; j += 1) {
+        if (source[j] === "\\" || LINE_END.test(source[j]) || (c === "`" && source[j] === "$")) return null;
+      }
+      if (j >= source.length) return null;
+      out += source.slice(i, j + 1); i = j; continue;
+    }
+    out += c;
+  }
+  return out;
+}
 /**
  * A Next.js app route page that only sends the visitor elsewhere: apart from comments, its whole module is one import
- * of redirect or permanentRedirect from next/navigation and a default export whose body is one unconditional call of
- * it with a literal target. Next answers such a route with the redirect itself, so neither the page nor its layouts
- * show any text, and coverage has no page to judge. Anything more (a condition, another import, a directive, another
- * export, a computed target) keeps the entry a page (fail closed).
+ * of redirect or permanentRedirect from next/navigation and a zero-argument default export function declaration whose
+ * body is one unconditional call of that imported helper with a literal target. Next answers such a route with the
+ * redirect itself, so neither the page nor its layouts show any text, and coverage has no page to judge. Anything more
+ * keeps the entry a page (fail closed): a condition, another import, a directive, another export, an arrow function,
+ * parameters, a computed target, a call to a helper the module did not import, a function named like the helper.
  */
 export function isRedirectOnlyPage(rel, source) {
-  if (!NEXT_PAGE.test(rel) || typeof source !== "string") return false;
-  const state = { inBlock: false };
-  const code = source.split("\n").map((l) => stripComments(l, state)).join("\n");
-  return REDIRECT_ONLY.test(code.trim());
+  if (typeof rel !== "string" || !NEXT_PAGE.test(rel) || typeof source !== "string") return false;
+  const code = codeWithoutComments(source);
+  const m = code === null ? null : REDIRECT_ONLY.exec(code.trim());
+  if (!m) return false;
+  const [, first, second, , name, called] = m;
+  const imported = second ? [first, second] : [first];
+  if (second === first) return false;
+  if (name && imported.includes(name)) return false;
+  return imported.includes(called);
 }
 /**
  * A page: its entry file, the layouts above a Next.js route, and every file they import that the gate read. A docs
@@ -506,10 +537,12 @@ export function coverage(payloads, { products = [], files = new Map(), neverPage
         // A named page is an exact repository-relative entry path. An unknown
         // selector must not silently widen the obligation to the page union.
         const target = pages.find((pg) => pg.entry === it.applies_to.page);
-        if (!target && touched.length) results.push({ ...base, page: it.applies_to.page, ok: false, detail: "acceptance page is not a known product page entry" });
+        // A named page that the change turned into a redirect stub still owes its item.
+        if (!target && (!changedSet || touched.length || changedSet.has(it.applies_to.page))) results.push({ ...base, page: it.applies_to.page, ok: false, detail: entries.includes(it.applies_to.page) ? "acceptance page only redirects, so it shows no text" : "acceptance page is not a known product page entry" });
         else if (target && touched.includes(target)) { const [ok, detail] = judge(it, textOf([target])); results.push({ ...base, page: target.entry, ok, detail }); }
       }
-      else if (touched.length) { const [ok, detail] = judge(it, textOf(pages)); results.push({ ...base, page: "(all pages of the product)", ok, detail }); }
+      // A full evaluation still judges a product item when every entry is a redirect stub: no page shows it.
+      else if (touched.length || (!changedSet && entries.length)) { const [ok, detail] = judge(it, textOf(pages)); results.push({ ...base, page: "(all pages of the product)", ok, detail }); }
     }
     if (changedSet && !entries.length && [...changedSet].some((rel) => productsForPath(payloads, rel).includes(product) && isPagePath(payloads, rel))) results.push({ product, rule: null, text: "Coverage needs the product's page entries.", ok: false, detail: "page files changed, but no page entry of this product was found" });
   }

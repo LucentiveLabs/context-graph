@@ -45,7 +45,7 @@ Reviewed orientation and engineering facts. Source changes require review and ha
       }
     ]
   },
-  "revalidate_by": "2026-11-08",
+  "revalidate_by": "2026-12-12",
   "gate": {
     "mode": "blocking"
   },
